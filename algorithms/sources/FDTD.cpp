@@ -55,19 +55,19 @@ void FDTD::FDTD::field_update(const double t) {
     for (uint64_t j = 0ll; j < Ny; ++j)
       for (uint64_t i = 0ll; i < Nx; ++i) {
         Ex(i, j) =
-          Ex(i, j) + C * dt * 0.5 * (Bz(i, j + 1ll) - Bz(i, j - 1ll)) / dy;
+          Ex(i, j) + C * dt * 0.5 * (Bz(i, j + 1ull) - Bz(i, j - 1ull)) / dy;
         Ey(i, j) =
-          Ey(i, j) - C * dt * 0.5 * (Bz(i + 1ll, j) - Bz(i - 1ll, j)) / dx;
+          Ey(i, j) - C * dt * 0.5 * (Bz(i + 1ull, j) - Bz(i - 1ull, j)) / dx;
         Ez(i, j) = Ez(i, j) + C * dt * 0.5 *
-          ((By(i + 1ll, j) - By(i - 1ll, j)) / dx -
-            (Bx(i, j + 1ll) - Bx(i, j - 1ll)) / dy);
+          ((By(i + 1ull, j) - By(i - 1ull, j)) / dx -
+            (Bx(i, j + 1ull) - Bx(i, j - 1ull)) / dy);
 
         Bx(i, j) =
-          Bx(i, j) - C * dt * 0.5 * (Ez(i, j + 1ll) - Ez(i, j - 1ll)) / dy;
+          Bx(i, j) - C * dt * 0.5 * (Ez(i, j + 1ull) - Ez(i, j - 1ull)) / dy;
         By(i, j) =
-          By(i, j) + C * dt * 0.5 * (Ez(i + 1ll, j) - Ez(i - 1ll, j)) / dx;
+          By(i, j) + C * dt * 0.5 * (Ez(i + 1ull, j) - Ez(i - 1ull, j)) / dx;
         Bz(i, j) = Bz(i, j) - C * dt * 0.5 *
-          ((Ey(i + 1ll, j) - Ey(i - 1ll, j)) / dx -
-            (Ex(i, j + 1ll) - Ex(i, j - 1ll)) / dy);
+          ((Ey(i + 1ull, j) - Ey(i - 1ull, j)) / dx -
+            (Ex(i, j + 1ull) - Ex(i, j - 1ull)) / dy);
       }
 }

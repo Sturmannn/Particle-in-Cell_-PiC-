@@ -13,8 +13,8 @@ namespace gtest {
     std::pair<double, double>& ax_bx,
     double t);
 
-  TEST(Test, first_test) {
-    std::pair<uint64_t, uint64_t> Nx_Ny = { 1000ull, 1010ull };
+  TEST(Test, main_test) {
+    std::pair<uint64_t, uint64_t> Nx_Ny = { 500ull, 510ull }; // { 1000ull, 1010ull }
     std::pair<double, double> ax_ay = { 0.0, 0.0 };
     std::pair<double, double> bx_by = { 1.0, 1.0 };
     double dt = 0.01;
@@ -37,6 +37,8 @@ namespace gtest {
         ASSERT_NEAR(analytical_field.get_By()(x, y), field.get_By()(x, y), 0.01);
         ASSERT_NEAR(analytical_field.get_Bz()(x, y), field.get_Bz()(x, y), 0.01);
       }
+    field.get_Ey().write_to_file();
+    analytical_field.get_Ey().write_to_file();
   }
 }  // namespace gtest
 

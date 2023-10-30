@@ -8,6 +8,7 @@
 constexpr double PI = 3.14159265358979323846;
 constexpr double C = 29979245800.0;  // speed of light (CGS)
 
+
 namespace FDTD {
 
   class FDTD {
@@ -19,15 +20,16 @@ namespace FDTD {
     FDTD(const FDTD& _fields);
     ~FDTD() = default;
 
+
     uint64_t get_Nx(void) const;
     uint64_t get_Ny(void) const;
 
     Field::ComputingField& get_Ex(void) { return Ex; }
     Field::ComputingField& get_Ey(void) { return Ey; }
     Field::ComputingField& get_Ez(void) { return Ez; }
-    Field::ComputingField& get_Bx(void) { return Ex; }
-    Field::ComputingField& get_By(void) { return Ey; }
-    Field::ComputingField& get_Bz(void) { return Ez; }
+    Field::ComputingField& get_Bx(void) { return Bx; }
+    Field::ComputingField& get_By(void) { return By; }
+    Field::ComputingField& get_Bz(void) { return Bz; }
 
     void field_update(const double t);
 

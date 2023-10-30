@@ -22,3 +22,24 @@ Field::ComputingField& Field::ComputingField::operator=(
   }
   return *this;
 }
+
+void Field::ComputingField::write_to_file(const uint64_t j)
+{
+  std::ofstream an_outfile(path_to_analytic_data);
+  std::ofstream my_outfile(path_to_calculated_data);
+  if (!an_outfile.is_open() || !my_outfile.is_open())
+  {
+    std::cout << "One of the files can't be opened!\n";
+    exit(-1);
+  }
+  for (uint64_t i = 0ull; i < Nx; ++i)
+  {
+    an_outfile << this->operator()(i, j) << ';';
+  
+    my_outfile << this->operator()(i, j) << ';';
+  }
+  
+  std::cout.flush();
+  an_outfile.close();
+  my_outfile.close();
+}

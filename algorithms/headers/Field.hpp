@@ -2,6 +2,11 @@
 #define __FIELD_HPP__
 
 #include <vector>
+#include <fstream>
+#include <iostream>
+
+constexpr char* path_to_analytic_data = "..\\..\\input_for_graphs\\analytical_data.csv"; // Writing E, B to a file
+constexpr char* path_to_calculated_data = "..\\..\\input_for_graphs\\my_data.csv"; // Writing E, B to a file
 
 namespace Field {
 
@@ -14,6 +19,8 @@ namespace Field {
 
     double& operator()(const uint64_t i, const uint64_t j);
     ComputingField& operator=(const ComputingField& _field);
+
+    void write_to_file(const uint64_t j = 0ull);
 
   private:
     uint64_t Nx, Ny;  // count of cells

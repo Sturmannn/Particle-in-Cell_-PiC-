@@ -7,6 +7,9 @@ int main(int argc, char** argv) {
 
 void gtest::set_default_field(FDTD::FDTD& _field,
   std::pair<double, double>& ax_bx) {
+
+  double x = PI;
+
   Field::ComputingField& Ex = _field.get_Ex();
   Field::ComputingField& Ey = _field.get_Ey();
   Field::ComputingField& Ez = _field.get_Ez();
@@ -15,18 +18,23 @@ void gtest::set_default_field(FDTD::FDTD& _field,
   Field::ComputingField& By = _field.get_By();
   Field::ComputingField& Bz = _field.get_Bz();
 
-  for (uint64_t y = 0; y < _field.get_Ny(); ++y)
-    for (uint64_t x = 0; x < _field.get_Nx(); ++x) {
-      Ey(x, y) = Bz(x, y) =
-        sin(2.0 * PI * (static_cast<double>(x) - ax_bx.first) /
+  for (uint64_t j = 0; j < _field.get_Ny(); ++j)
+    for (uint64_t i = 0; i < _field.get_Nx(); ++i) {
+      Ey(i, j) = Bz(i, j) =
+        sin(2.0 * PI * (x - ax_bx.first) /
           (ax_bx.second - ax_bx.first));
-      Ex(x, y) = Ez(x, y) = Bx(x, y) = By(x, y) = 0.0;
+      double tmp = sin(2.0 * PI * (x - ax_bx.first) /
+        (ax_bx.second - ax_bx.first));
+      Ex(i, j) = Ez(i, j) = Bx(i, j) = By(i, j) = 0.0;
     }
 }
 
 void gtest::analytical_default_solution(FDTD::FDTD& _field,
   std::pair<double, double>& ax_bx,
   double t) {
+
+  double x = PI;
+
   Field::ComputingField& Ex = _field.get_Ex();
   Field::ComputingField& Ey = _field.get_Ey();
   Field::ComputingField& Ez = _field.get_Ez();
@@ -35,11 +43,11 @@ void gtest::analytical_default_solution(FDTD::FDTD& _field,
   Field::ComputingField& By = _field.get_By();
   Field::ComputingField& Bz = _field.get_Bz();
 
-  for (uint64_t y = 0ull; y < _field.get_Ny(); ++y)
-    for (uint64_t x = 0ull; x < _field.get_Nx(); ++x) {
-      Ey(x, y) = Bz(x, y) =
-        sin(2.0 * PI * (static_cast<double>(x) - ax_bx.first - C * t) /
+  for (uint64_t j = 0ull; j < _field.get_Ny(); ++j)
+    for (uint64_t i = 0ull; i < _field.get_Nx(); ++i) {
+      Ey(i, j) = Bz(i, j) =
+        sin(2.0 * PI * (x - ax_bx.first - C * t) /
           (ax_bx.second - ax_bx.first));
-      Ex(x, y) = Ez(x, y) = Bx(x, y) = By(x, y) = 0.0;
+      Ex(i, j) = Ez(i, j) = Bx(i, j) = By(i, j) = 0.0;
     }
 }
