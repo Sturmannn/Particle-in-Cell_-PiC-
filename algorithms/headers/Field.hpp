@@ -17,10 +17,11 @@ namespace Field {
     ComputingField(const ComputingField& _field);
     ~ComputingField() = default;
 
-    double& operator()(const uint64_t i, const uint64_t j);
+    double& operator()(uint64_t i, uint64_t j);
+    //double& operator()(const int64_t i, const int64_t j);
     ComputingField& operator=(const ComputingField& _field);
 
-    void write_to_file(const uint64_t j = 0ull);
+    void write_to_file(const double _dx, const uint64_t j = 0ull);
 
   private:
     uint64_t Nx, Ny;  // count of cells

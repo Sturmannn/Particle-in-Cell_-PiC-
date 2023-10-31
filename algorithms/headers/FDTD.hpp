@@ -21,8 +21,8 @@ namespace FDTD {
     ~FDTD() = default;
 
 
-    uint64_t get_Nx(void) const;
-    uint64_t get_Ny(void) const;
+    uint64_t get_Nx(void) const { return Nx; }
+    uint64_t get_Ny(void) const { return Ny; }
 
     Field::ComputingField& get_Ex(void) { return Ex; }
     Field::ComputingField& get_Ey(void) { return Ey; }
@@ -30,6 +30,9 @@ namespace FDTD {
     Field::ComputingField& get_Bx(void) { return Bx; }
     Field::ComputingField& get_By(void) { return By; }
     Field::ComputingField& get_Bz(void) { return Bz; }
+
+    double get_dx(void) const { return dx; }
+    double get_dy(void) const { return dy; }
 
     void field_update(const double t);
 
