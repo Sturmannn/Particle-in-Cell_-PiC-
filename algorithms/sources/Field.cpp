@@ -10,8 +10,11 @@ Field::ComputingField::ComputingField(const ComputingField& _field)
 
 double& Field::ComputingField::operator()(uint64_t i, uint64_t j) {
 
-  if (i == SIZE_MAX) i = 0ull;
-  if (j == SIZE_MAX) j = 0ull;
+  //if (i == SIZE_MAX) i = 0ull;
+  //if (j == SIZE_MAX) j = 0ull;
+
+  if (i == SIZE_MAX) i = Nx - 1ull;
+  if (j == SIZE_MAX) j = Ny - 1ull;
 
   return field[Nx * (j % Ny) + (i % Nx)];
 }
@@ -42,28 +45,30 @@ Field::ComputingField& Field::ComputingField::operator=(
   return *this;
 }
 
-void Field::ComputingField::write_to_file(const double _dx, const uint64_t j)
+void Field::ComputingField::clear_file(const char* path)
 {
-  std::ofstream an_outfile(path_to_analytic_data);
-  std::ofstream my_outfile(path_to_calculated_data);
-  if (!an_outfile.is_open() || !my_outfile.is_open())
+  std::ofstream outfile;
+  outfile.open(path, std::ios::out | std::ios::trunc);
+  outfile.close();
+}
+
+void Field::ComputingField::write_field_to_file(const char* path, const uint64_t j)
+{
+  std::ofstream outfile;
+  outfile.open(path, std::ios::app);
+  if(!outfile.is_open())
   {
-    std::cout << "One of the files can't be opened!" << std::endl;
+    std::cout << "The file can't be opened!" << std::endl;
     exit(-1);
   }
-  
+  if (j >= Ny)
+  {
+    std::cout << "Error: Going beyond the column indexing in the matrix (Writing field to the file)\n";
+    exit(-1);
+  }
   uint64_t i = 0ull;
   for (; i < Nx - 1ull; ++i)
-  {
-    an_outfile << this->operator()(i, j) << ';';
-  
-    my_outfile << this->operator()(i, j) << ';';
-  }
-
-  an_outfile << this->operator()(i, j) << '\n' << _dx;
-
-  my_outfile << this->operator()(i, j) << '\n' << _dx;
-  
-  an_outfile.close();
-  my_outfile.close();
+    outfile << this->operator()(i, j) << ';';
+  outfile << this->operator()(i, j) << '\n';
+  outfile.close();
 }

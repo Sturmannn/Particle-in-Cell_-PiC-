@@ -48,6 +48,7 @@ FDTD::FDTD::FDTD(const FDTD& _fields)
 
 void FDTD::FDTD::field_update(const double t) {
   for (double time = 0.0; time < t; time += dt)
+  {
     for (uint64_t j = 0ll; j < Ny; ++j)
       for (uint64_t i = 0ll; i < Nx; ++i) {
         Ex(i, j) =
@@ -56,7 +57,9 @@ void FDTD::FDTD::field_update(const double t) {
           Ey(i, j) - C * dt * 0.5 * ((Bz(i + 1ull, j) - Bz(i - 1ull, j)) / dx);
         Ez(i, j) = Ez(i, j) + C * dt * 0.5 *
           (((By(i + 1ull, j) - By(i - 1ull, j)) / dx) - (Bx(i, j + 1ull) - Bx(i, j - 1ull)) / dy);
-
+      }
+    for (uint64_t j = 0ll; j < Ny; ++j)
+      for (uint64_t i = 0ll; i < Nx; ++i) {
         Bx(i, j) =
           Bx(i, j) - C * dt * 0.5 * ((Ez(i, j + 1ull) - Ez(i, j - 1ull)) / dy);
         By(i, j) =
@@ -65,7 +68,7 @@ void FDTD::FDTD::field_update(const double t) {
           (((Ey(i + 1ull, j) - Ey(i - 1ull, j)) / dx) -
             (Ex(i, j + 1ull) - Ex(i, j - 1ull)) / dy);
       }
-
+  }
   //for (double time = 0.0; time < t; time += dt)
   //  for (int64_t j = 0; j < Ny; ++j)
   //    for (int64_t i = 0; i < Nx; ++i)
@@ -78,4 +81,24 @@ void FDTD::FDTD::field_update(const double t) {
   //      By(i, j) = By(i, j) + C * dt * ((Ez(i + 1, j) - (Ez(i - 1, j))) / (2.0 * dx));
   //      Bz(i, j) = Bz(i, j) - C * dt * (((Ey(i + 1, j) - Ey(i - 1, j)) / (2.0 * dx)) - ((Ex(i, j + 1) - (Ex(i, j - 1))) / (2.0 * dy)));
   //    }
+}
+
+void FDTD::FDTD::write_fields_to_file(const char* path, uint64_t j)
+{
+  Ex.write_field_to_file(path);
+  Ey.write_field_to_file(path);
+  Ez.write_field_to_file(path);
+  Bx.write_field_to_file(path);
+  By.write_field_to_file(path);
+  Bz.write_field_to_file(path);
+
+  std::ofstream outfile;
+  outfile.open(path, std::ios::app);
+  if (!outfile.is_open())
+  {
+    std::cout << "The file can't be opened!" << std::endl;
+    exit(-1);
+  }
+  outfile << dx << std::endl;
+  outfile.close();
 }

@@ -36,6 +36,7 @@ namespace FDTD {
 
     void field_update(const double t);
 
+    void write_fields_to_file(const char* path, uint64_t j = 0ull); //The row is fixed
   private:
     uint64_t Nx, Ny;
     Field::ComputingField Ex, Ey, Ez, Bx, By, Bz;
