@@ -8,11 +8,25 @@ Field::ComputingField::ComputingField(const uint64_t _Nx, const uint64_t _Ny)
 Field::ComputingField::ComputingField(const ComputingField& _field)
   : field(_field.field), Nx(_field.Nx), Ny(_field.Ny) {}
 
+Field::ComputingField::ComputingField(ComputingField&& _field) noexcept : field(std::move(_field.field))
+{
+  Nx = std::move(_field.Nx);
+  Ny = std::move(_field.Ny);
+}
+
 double& Field::ComputingField::operator()(uint64_t i, uint64_t j) {
 
   //if (i == SIZE_MAX) i = 0ull;
   //if (j == SIZE_MAX) j = 0ull;
 
+  if (i == SIZE_MAX) i = Nx - 1ull;
+  if (j == SIZE_MAX) j = Ny - 1ull;
+
+  return field[Nx * (j % Ny) + (i % Nx)];
+}
+
+const double& Field::ComputingField::operator()(uint64_t i, uint64_t j) const
+{
   if (i == SIZE_MAX) i = Nx - 1ull;
   if (j == SIZE_MAX) j = Ny - 1ull;
 
@@ -45,6 +59,17 @@ Field::ComputingField& Field::ComputingField::operator=(
   return *this;
 }
 
+Field::ComputingField& Field::ComputingField::operator=(ComputingField&& _field) noexcept
+{
+  if (this != &_field)
+  {
+    field = std::move(_field.field);
+    Nx = std::move(_field.Nx);
+    Ny = std::move(_field.Ny);
+  }
+  return *this;
+}
+
 void Field::ComputingField::clear_file(const char* path)
 {
   std::ofstream outfile;
@@ -52,7 +77,7 @@ void Field::ComputingField::clear_file(const char* path)
   outfile.close();
 }
 
-void Field::ComputingField::write_field_to_file(const char* path, const uint64_t j)
+void Field::ComputingField::write_field_to_file_OX(const char* path, const uint64_t j)
 {
   std::ofstream outfile;
   outfile.open(path, std::ios::app);
@@ -68,6 +93,27 @@ void Field::ComputingField::write_field_to_file(const char* path, const uint64_t
   }
   uint64_t i = 0ull;
   for (; i < Nx - 1ull; ++i)
+    outfile << this->operator()(i, j) << ';';
+  outfile << this->operator()(i, j) << '\n';
+  outfile.close();
+}
+
+void Field::ComputingField::write_field_to_file_OY(const char* path, const uint64_t i)
+{
+  std::ofstream outfile;
+  outfile.open(path, std::ios::app);
+  if (!outfile.is_open())
+  {
+    std::cout << "The file can't be opened!" << std::endl;
+    exit(-1);
+  }
+  if (i >= Nx)
+  {
+    std::cout << "Error: Going beyond the column indexing in the matrix (Writing field to the file)\n";
+    exit(-1);
+  }
+  uint64_t j = 0ull;
+  for (; j < Ny - 1ull; ++j)
     outfile << this->operator()(i, j) << ';';
   outfile << this->operator()(i, j) << '\n';
   outfile.close();

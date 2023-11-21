@@ -18,11 +18,16 @@ namespace FDTD {
       const std::pair<double, double>& ax_ay,
       const std::pair<double, double>& bx_by, double _dt);
     FDTD(const FDTD& _fields);
+    FDTD(FDTD&& _fields) noexcept;
     ~FDTD() = default;
 
+    FDTD& operator = (const FDTD& _fields);
+    FDTD& operator = (FDTD&& _fields) noexcept;
 
-    uint64_t get_Nx(void) const { return Nx; }
-    uint64_t get_Ny(void) const { return Ny; }
+    uint64_t get_Nx(void) const noexcept { return Nx; }
+    uint64_t get_Ny(void) const noexcept { return Ny; }
+    std::pair<double, double> get_ax_bx(void) const noexcept { return std::make_pair(ax, bx); }
+    std::pair<double, double> get_ay_by(void) const noexcept { return std::make_pair(ay, by); }
 
     Field::ComputingField& get_Ex(void) { return Ex; }
     Field::ComputingField& get_Ey(void) { return Ey; }
@@ -31,12 +36,15 @@ namespace FDTD {
     Field::ComputingField& get_By(void) { return By; }
     Field::ComputingField& get_Bz(void) { return Bz; }
 
-    double get_dx(void) const { return dx; }
-    double get_dy(void) const { return dy; }
+
+    double get_dx(void) const noexcept { return dx; }
+    double get_dy(void) const noexcept { return dy; }
+    double get_dt(void) const noexcept { return dt; }
 
     void field_update(const double t);
 
-    void write_fields_to_file(const char* path, uint64_t j = 0ull); //The row is fixed
+    void write_fields_to_file_OX(const char* path, const double dx, uint64_t j = 0ull); //The row is fixed
+    void write_fields_to_file_OY(const char* path, const double dy, uint64_t i = 0ull); //The col is fixed
   private:
     uint64_t Nx, Ny;
     Field::ComputingField Ex, Ey, Ez, Bx, By, Bz;

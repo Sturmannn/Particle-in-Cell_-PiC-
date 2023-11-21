@@ -24,13 +24,15 @@ FDTD::FDTD::FDTD(const std::pair<uint64_t, uint64_t>& Nx_Ny,
   dt = _dt;
 }
 
-FDTD::FDTD::FDTD(const FDTD& _fields)
+
+FDTD::FDTD::FDTD(const FDTD& _fields) 
   : Ex(_fields.Ex),
   Ey(_fields.Ey),
   Ez(_fields.Ez),
   Bx(_fields.Bx),
   By(_fields.By),
   Bz(_fields.Bz) {
+
   Nx = _fields.Nx;
   Ny = _fields.Ny;
 
@@ -46,7 +48,89 @@ FDTD::FDTD::FDTD(const FDTD& _fields)
   dt = _fields.dt;
 }
 
+FDTD::FDTD::FDTD(FDTD&& _fields) noexcept
+  : Ex(std::move(_fields.Ex)),
+  Ey(std::move(_fields.Ey)),
+  Ez(std::move(_fields.Ez)),
+  Bx(std::move(_fields.Bx)),
+  By(std::move(_fields.By)),
+  Bz(std::move(_fields.Bz)) {
+  
+  Nx = std::move(_fields.Nx);
+  Ny = std::move(_fields.Ny);
+
+  ax = std::move(_fields.ax);
+  ay = std::move(_fields.ay);
+  
+  bx = std::move(_fields.bx);
+  by = std::move(_fields.by);
+  
+  dx = std::move(_fields.dx);
+  dy = std::move(_fields.dy);
+  dt = std::move(_fields.dt);
+}
+
+FDTD::FDTD& FDTD::FDTD::operator=(const FDTD& _fields)
+{
+  if (this != &_fields)
+  {
+    Ex = _fields.Ex;
+    Ey = _fields.Ey;
+    Ez = _fields.Ez;
+    
+    Bx = _fields.Bx;
+    By = _fields.By;
+    Bz = _fields.Bz;
+
+    Nx = _fields.Nx;
+    Ny = _fields.Ny;
+
+    ax = _fields.ax;
+    ay = _fields.ay;
+
+    bx = _fields.bx;
+    by = _fields.by;
+
+    dx = _fields.dx;
+    dy = _fields.dy;
+
+    dt = _fields.dt;
+  }
+  return *this;
+}
+
+FDTD::FDTD& FDTD::FDTD::operator=(FDTD&& _fields) noexcept
+{
+  if (this != &_fields)
+  {
+    Ex = std::move(_fields.Ex);
+    Ey = std::move(_fields.Ey);
+    Ez = std::move(_fields.Ez);
+    Bx = std::move(_fields.Bx);
+    By = std::move(_fields.By);
+    Bz = std::move(_fields.Bz);
+
+    Nx = std::move(Nx);
+    Ny = std::move(Ny);
+
+    ax = std::move(ax);
+    ay = std::move(ay);
+    bx = std::move(bx);
+    by = std::move(by);
+
+    dx = std::move(dx);
+    dy = std::move(dy);
+    dt = std::move(dt);
+  }
+  return *this;
+}
+
 void FDTD::FDTD::field_update(const double t) {
+  if (dt == 0.0)
+  {
+    std::cout << "Time step is null";
+    exit(-1);
+  }
   for (double time = 0.0; time < t; time += dt)
   {
     for (uint64_t j = 0ll; j < Ny; ++j)
@@ -83,14 +167,14 @@ void FDTD::FDTD::field_update(const double t) {
   //    }
 }
 
-void FDTD::FDTD::write_fields_to_file(const char* path, uint64_t j)
+void FDTD::FDTD::write_fields_to_file_OX(const char* path, const double dx, uint64_t j)
 {
-  Ex.write_field_to_file(path);
-  Ey.write_field_to_file(path);
-  Ez.write_field_to_file(path);
-  Bx.write_field_to_file(path);
-  By.write_field_to_file(path);
-  Bz.write_field_to_file(path);
+  Ex.write_field_to_file_OX(path);
+  Ey.write_field_to_file_OX(path);
+  Ez.write_field_to_file_OX(path);
+  Bx.write_field_to_file_OX(path);
+  By.write_field_to_file_OX(path);
+  Bz.write_field_to_file_OX(path);
 
   std::ofstream outfile;
   outfile.open(path, std::ios::app);
@@ -100,5 +184,25 @@ void FDTD::FDTD::write_fields_to_file(const char* path, uint64_t j)
     exit(-1);
   }
   outfile << dx << std::endl;
+  outfile.close();
+}
+
+void FDTD::FDTD::write_fields_to_file_OY(const char* path, const double dy, uint64_t i)
+{
+  Ex.write_field_to_file_OY(path);
+  Ey.write_field_to_file_OY(path);
+  Ez.write_field_to_file_OY(path);
+  Bx.write_field_to_file_OY(path);
+  By.write_field_to_file_OY(path);
+  Bz.write_field_to_file_OY(path);
+
+  std::ofstream outfile;
+  outfile.open(path, std::ios::app);
+  if (!outfile.is_open())
+  {
+    std::cout << "The file can't be opened!" << std::endl;
+    exit(-1);
+  }
+  outfile << dy << std::endl;
   outfile.close();
 }
