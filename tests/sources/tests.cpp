@@ -1,156 +1,15 @@
 #include "tests.hpp"
 
-//void gtest::set_default_field(FDTD::FDTD& _field,
-//  std::pair<double, double>& ax_bx) {
-//
-//  double x = ax_bx.first;
-//
-//  Field::ComputingField& Ex = _field.get_Ex();
-//  Field::ComputingField& Ey = _field.get_Ey();
-//  Field::ComputingField& Ez = _field.get_Ez();
-//
-//  Field::ComputingField& Bx = _field.get_Bx();
-//  Field::ComputingField& By = _field.get_By();
-//  Field::ComputingField& Bz = _field.get_Bz();
-//
-//  for (uint64_t i = 0; i < _field.get_Nx(); ++i, x += _field.get_dx())
-//    for (uint64_t j = 0; j < _field.get_Ny(); ++j) {
-//      Ey(i, j) = Bz(i, j) =
-//        sin(2.0 * PI * (x - ax_bx.first) /
-//          (ax_bx.second - ax_bx.first));
-//      Ex(i, j) = Ez(i, j) = Bx(i, j) = By(i, j) = 0.0;
-//    }
-//}
-
-
-void gtest::set_default_field_OY(FDTD::FDTD& _field, const Component E, const Component B)
+gtest::Test_obj::Test_obj(const Component _E, const Component _B, FDTD::FDTD& _field) : field(_field), analytical_field(field)
 {
-  //if (E == )
-
-  std::pair<double, double>ax_bx = _field.get_ax_bx();
-  double x = ax_bx.first;
-
-  Field::ComputingField& Ex = _field.get_Ex();
-  Field::ComputingField& Ey = _field.get_Ey();
-  Field::ComputingField& Ez = _field.get_Ez();
-
-  Field::ComputingField& Bx = _field.get_Bx();
-  Field::ComputingField& By = _field.get_By();
-  Field::ComputingField& Bz = _field.get_Bz();
-
-  for (uint64_t i = 0; i < _field.get_Nx(); ++i, x += _field.get_dx())
-    for (uint64_t j = 0; j < _field.get_Ny(); ++j) {
-      Ez(i, j) =
-        sin(2.0 * PI * (x - ax_bx.first) /
-          (ax_bx.second - ax_bx.first));
-      By(i, j) =
-        sin(2.0 * PI * (x - ax_bx.first) /
-          (ax_bx.second - ax_bx.first));
-      Ex(i, j) = Ey(i, j) = Bx(i, j) = Bz(i, j) = 0.0;
-    }
-}
-
-void gtest::set_default_field(FDTD::FDTD& _field,
-  std::pair<double, double>& ax_bx) {
-
-  double x = ax_bx.first;
-
-  Field::ComputingField& Ex = _field.get_Ex();
-  Field::ComputingField& Ey = _field.get_Ey();
-  Field::ComputingField& Ez = _field.get_Ez();
-
-  Field::ComputingField& Bx = _field.get_Bx();
-  Field::ComputingField& By = _field.get_By();
-  Field::ComputingField& Bz = _field.get_Bz();
-
-  for (uint64_t i = 0; i < _field.get_Nx(); ++i, x += _field.get_dx())
-    for (uint64_t j = 0; j < _field.get_Ny(); ++j) {
-      Ez(i, j) =
-        sin(2.0 * PI * (x - ax_bx.first) /
-          (ax_bx.second - ax_bx.first));
-      By(i, j) = 
-        sin(2.0 * PI * (x - ax_bx.first) /
-        (ax_bx.second - ax_bx.first));
-      Ex(i, j) = Ey(i, j) = Bx(i, j) = Bz(i, j) = 0.0;
-    }
-}
-
-void gtest::analytical_default_solution(FDTD::FDTD& _field,
-  std::pair<double, double>& ax_bx,
-  double t) {
-
-  double x = ax_bx.first;
-
-  Field::ComputingField& Ex = _field.get_Ex();
-  Field::ComputingField& Ey = _field.get_Ey();
-  Field::ComputingField& Ez = _field.get_Ez();
-
-  Field::ComputingField& Bx = _field.get_Bx();
-  Field::ComputingField& By = _field.get_By();
-  Field::ComputingField& Bz = _field.get_Bz();
-
-  for (uint64_t i = 0ull; i < _field.get_Nx(); ++i, x += _field.get_dx())
-    for (uint64_t j = 0ull; j < _field.get_Ny(); ++j) {
-      Ez(i, j) =
-        sin(2.0 * PI * (x - ax_bx.first + C * t) /
-          (ax_bx.second - ax_bx.first));
-      By(i, j) = 
-        sin(2.0 * PI * (x - ax_bx.first + C * t) /
-        (ax_bx.second - ax_bx.first));
-      Ex(i, j) = Ey(i, j) = Bx(i, j) = Bz(i, j) = 0.0;
-    }
-}
-
-double gtest::get_global_err(Field::ComputingField& field_1, Field::ComputingField& field_2)
-{
-  double max_err = 0.0;
-  double tmp_err;
-  for (uint64_t j = 0; j < field_1.get_Ny(); ++j)
-    for (uint64_t i = 0; i < field_1.get_Nx(); ++i)
-    {
-      tmp_err = fabs(field_1(i, j) - field_2(i, j));
-      if (tmp_err > max_err)
-        max_err = tmp_err;
-    }
-  return max_err;
-}
-
-
-
-//void gtest::analytical_default_solution(FDTD::FDTD& _field,
-//  std::pair<double, double>& ax_bx,
-//  double t) {
-//
-//  double x = ax_bx.first;
-//
-//  Field::ComputingField& Ex = _field.get_Ex();
-//  Field::ComputingField& Ey = _field.get_Ey();
-//  Field::ComputingField& Ez = _field.get_Ez();
-//
-//  Field::ComputingField& Bx = _field.get_Bx();
-//  Field::ComputingField& By = _field.get_By();
-//  Field::ComputingField& Bz = _field.get_Bz();
-//
-//  for (uint64_t i = 0ull; i < _field.get_Nx(); ++i, x += _field.get_dx())
-//    for (uint64_t j = 0ull; j < _field.get_Ny(); ++j) {
-//      Ey(i, j) = Bz(i, j) =
-//        sin(2.0 * PI * (x - ax_bx.first - C * t) /
-//          (ax_bx.second - ax_bx.first));
-//      Ex(i, j) = Ez(i, j) = Bx(i, j) = By(i, j) = 0.0;
-//    }
-//}
-
-void gtest::Courant_condition_check(const double _dt, const double _dx)
-{
-  if (_dt <= (_dx / (C * sqrt(2)))) return;
-  if (_dt <= (_dx * _dx / 2 * (C * sqrt(2)))) return;
-  std::cout << "Courant's condition is not satisfied\n";
-  exit(-1);
+  E = _E;
+  B = _B;
 }
 
 gtest::Test_obj::Test_obj(const Component _E, const Component _B, FDTD::FDTD&& _field) : field(std::move(_field)), analytical_field(field)
 {
-  Courant_condition_check();
+  //Courant_condition_check();
+
   //std::pair<uint64_t, uint64_t> Nx_Ny = { 64ull, 64ull };
   //std::pair<double, double> ax_ay = { 0.0, 0.0 };
   //std::pair<double, double> bx_by = { 1.0, 1.0 };
@@ -179,6 +38,12 @@ gtest::Test_obj& gtest::Test_obj::operator=(const Test_obj& other_test_field)
   return *this;
 }
 
+gtest::Test_obj& gtest::Test_obj::operator=(const FDTD::FDTD& other_test_field)
+{
+  field = other_test_field;
+  return *this;
+}
+
 gtest::Test_obj& gtest::Test_obj::operator=(Test_obj&& other_test_field) noexcept
 {
   if (this != &other_test_field)
@@ -188,10 +53,11 @@ gtest::Test_obj& gtest::Test_obj::operator=(Test_obj&& other_test_field) noexcep
   return *this;
 }
 
-void gtest::Test_obj::analytical_default_solution_OX(const Component E, const Component B, const double t)
+void gtest::Test_obj::analytical_default_solution_OX(const Component E, const Component B, const double t, const Shift _shift)
 {
   std::pair<double, double>ax_bx = analytical_field.get_ax_bx();
   double x = ax_bx.first;
+  double coeff = (_shift == Shift::shifted) ? 0.5 : 1.0;
 
   Field::ComputingField& Ex = analytical_field.get_Ex();
   Field::ComputingField& Ey = analytical_field.get_Ey();
@@ -211,7 +77,7 @@ void gtest::Test_obj::analytical_default_solution_OX(const Component E, const Co
           sin(2.0 * PI * (x - ax_bx.first - sign * C * t) /
             (ax_bx.second - ax_bx.first));
         Bz(i, j) =
-          sin(2.0 * PI * (x - ax_bx.first - sign * C * t) /
+          sin(2.0 * PI * (x * coeff - ax_bx.first * coeff - sign * C * t) /
             (ax_bx.second - ax_bx.first));
         Ex(i, j) = Ez(i, j) = Bx(i, j) = By(i, j) = 0.0;
       }
@@ -224,7 +90,7 @@ void gtest::Test_obj::analytical_default_solution_OX(const Component E, const Co
           sin(2.0 * PI * (x - ax_bx.first - sign * C * t) /
             (ax_bx.second - ax_bx.first));
         By(i, j) =
-          sin(2.0 * PI * (x - ax_bx.first - sign * C * t) /
+          sin(2.0 * PI * (x * coeff - ax_bx.first * coeff - sign * C * t) /
             (ax_bx.second - ax_bx.first));
         Ex(i, j) = Ey(i, j) = Bx(i, j) = Bz(i, j) = 0.0;
       }
@@ -236,10 +102,11 @@ void gtest::Test_obj::analytical_default_solution_OX(const Component E, const Co
   }
 }
 
-void gtest::Test_obj::analytical_default_solution_OY(const Component E, const Component B, const double t)
+void gtest::Test_obj::analytical_default_solution_OY(const Component E, const Component B, const double t, const Shift _shift)
 {
   std::pair<double, double>ay_by = analytical_field.get_ay_by();
   double y = ay_by.first;
+  double coeff = (_shift == Shift::shifted) ? 0.5 : 1.0;
 
   Field::ComputingField& Ex = analytical_field.get_Ex();
   Field::ComputingField& Ey = analytical_field.get_Ey();
@@ -254,30 +121,35 @@ void gtest::Test_obj::analytical_default_solution_OY(const Component E, const Co
   if (E == Component::Ez && B == Component::Bx)
   {
     for (uint64_t j = 0ull; j < field.get_Ny(); ++j, y += field.get_dy())
+    {
       for (uint64_t i = 0ull; i < field.get_Nx(); ++i)
       {
         Ez(i, j) =
           sin(2.0 * PI * (y - ay_by.first - sign * C * t) /
             (ay_by.second - ay_by.first));
         Bx(i, j) =
-          sin(2.0 * PI * (y - ay_by.first - sign * C * t) /
+          sin(2.0 * PI * (y * coeff - ay_by.first * coeff - sign * C * t) /
             (ay_by.second - ay_by.first));
         Ex(i, j) = Ey(i, j) = By(i, j) = Bz(i, j) = 0.0;
       }
+    }
   }
   else if (E == Component::Ex && B == Component::Bz)
   {
     for (uint64_t j = 0ull; j < field.get_Ny(); ++j, y += field.get_dy())
+    {
+
       for (uint64_t i = 0ull; i < field.get_Nx(); ++i)
       {
         Ex(i, j) =
           sin(2.0 * PI * (y - ay_by.first - sign * C * t) /
             (ay_by.second - ay_by.first));
         Bz(i, j) =
-          sin(2.0 * PI * (y - ay_by.first - sign * C * t) /
+          sin(2.0 * PI * (y * coeff - ay_by.first * coeff - sign * C * t) /
             (ay_by.second - ay_by.first));
         Ey(i, j) = Ez(i, j) = Bx(i, j) = By(i, j) = 0.0;
       }
+    }
   }
   else
   {
@@ -286,9 +158,10 @@ void gtest::Test_obj::analytical_default_solution_OY(const Component E, const Co
   }
 }
 
-void gtest::Test_obj::numerical_solution(const double t)
+void gtest::Test_obj::numerical_solution(const double t, const Shift _shift)
 {
-  field.field_update(t);
+  //Courant_condition_check(_shift);
+  (_shift == Shift::shifted) ? field.shifted_field_update(t) : field.field_update(t);
 }
 
 double gtest::Test_obj::get_global_err(const Component component)
@@ -336,7 +209,7 @@ double gtest::Test_obj::get_global_err(const Component component)
   }
 }
 
-void gtest::Test_obj::check_ñonvergence(Test_obj& other_test)
+void gtest::Test_obj::print_ñonvergence(Test_obj& other_test)
 {
   std::cout << "\n\n The 1st error is: " << this->get_global_err(E);
   std::cout << "\n The 2nd error is: " << other_test.get_global_err(E);
@@ -344,10 +217,50 @@ void gtest::Test_obj::check_ñonvergence(Test_obj& other_test)
   std::cout << "\n Difference = " << this->get_global_err(E) / other_test.get_global_err(E) << "\n\n";
 }
 
-void gtest::Test_obj::Courant_condition_check() const noexcept
+//double gtest::Test_obj::get_convergence()
+//{
+//  return figet_global_err(E) / other_test.get_global_err(E);
+//}
+
+void gtest::Test_obj::write_convergence_to_file(const char* path, std::vector<double>& data)
 {
-  if (field.get_dt() <= (field.get_dx() * field.get_dx() / 2 * (C * sqrt(2)))) return; // Courant's condition of heat conduction
-  if (field.get_dt() <= (field.get_dy() * field.get_dy() / 2 * (C * sqrt(2)))) return;
+  std::ofstream outfile;
+  outfile.open(path);
+  if (!outfile.is_open())
+  {
+    std::cout << "The file can't be opened!" << std::endl;
+    exit(-1);
+  }
+  uint64_t i = 0ull;
+
+  for (i = 0ull; i < data.size() - 1ull; ++i)
+  {
+    outfile << data[i] << ';';
+  }
+  outfile << data[i] << std::endl;
+
+  //for (const auto& it : data)
+  //{
+  //  outfile << it << ' ';
+  //}
+  //outfile << std::endl;
+  
+  outfile.close();
+}
+
+void gtest::Test_obj::Courant_condition_check(const Shift _shift) const noexcept
+{
+  if (_shift == Shift::unshifted)
+  {
+    if (field.get_dt() <= (field.get_dx() * field.get_dx() / 2 * (C * sqrt(2)))) return; // Courant's condition of heat conduction
+    if (field.get_dt() <= (field.get_dy() * field.get_dy() / 2 * (C * sqrt(2)))) return;
+  }
+  else
+  {
+    double tmp = (field.get_dx() / (C * sqrt(2)));
+    if (field.get_dt() <= (field.get_dx() / (C * sqrt(2)))) return;
+    if (field.get_dt() <= (field.get_dy() / (C * sqrt(2)))) return;
+  }
   std::cout << "Courant's condition is not satisfied\n";
 
   //if (_dt <= (_dx / (C * sqrt(2)))) return;
@@ -369,10 +282,11 @@ double gtest::Test_obj::helper_get_global_err(const Field::ComputingField& _E, c
   return max_err;
 }
 
-void gtest::Test_obj::set_default_field_OX(const Component E, const Component B)
+void gtest::Test_obj::set_default_field_OX(const Component E, const Component B, const Shift _shift)
 {
   std::pair<double, double>ax_bx = field.get_ax_bx();
   double x = ax_bx.first;
+  double coeff = (_shift == Shift::shifted) ? 0.5 : 1.0;
 
   Field::ComputingField& Ex = field.get_Ex();
   Field::ComputingField& Ey = field.get_Ey();
@@ -390,7 +304,7 @@ void gtest::Test_obj::set_default_field_OX(const Component E, const Component B)
           sin(2.0 * PI * (x - ax_bx.first) /
             (ax_bx.second - ax_bx.first));
         Bz(i, j) =
-          sin(2.0 * PI * (x - ax_bx.first) /
+          sin(2.0 * PI * (x * coeff - ax_bx.first * coeff) /
             (ax_bx.second - ax_bx.first));
         Ex(i, j) = Ez(i, j) = Bx(i, j) = By(i, j) = 0.0;
       }
@@ -403,7 +317,7 @@ void gtest::Test_obj::set_default_field_OX(const Component E, const Component B)
           sin(2.0 * PI * (x - ax_bx.first) /
             (ax_bx.second - ax_bx.first));
         By(i, j) =
-          sin(2.0 * PI * (x - ax_bx.first) /
+          sin(2.0 * PI * (x * coeff - ax_bx.first * coeff) /
             (ax_bx.second - ax_bx.first));
         Ex(i, j) = Ey(i, j) = Bx(i, j) = Bz(i, j) = 0.0;
       }
@@ -415,11 +329,12 @@ void gtest::Test_obj::set_default_field_OX(const Component E, const Component B)
   }
 }
 
-void gtest::Test_obj::set_default_field_OY(const Component E, const Component B)
+void gtest::Test_obj::set_default_field_OY(const Component E, const Component B, const Shift _shift)
 {
   std::pair<double, double>ay_by = field.get_ay_by();
 
   double y = ay_by.first;
+  double coeff = (_shift == Shift::shifted) ? 0.5 : 1.0;
 
   Field::ComputingField& Ex = field.get_Ex();
   Field::ComputingField& Ey = field.get_Ey();
@@ -438,7 +353,7 @@ void gtest::Test_obj::set_default_field_OY(const Component E, const Component B)
           sin(2.0 * PI * (y - ay_by.first) /
             (ay_by.second - ay_by.first));
         Bx(i, j) =
-          sin(2.0 * PI * (y - ay_by.first) /
+          sin(2.0 * PI * (y * coeff - ay_by.first * coeff) /
             (ay_by.second - ay_by.first));
         Ex(i, j) = Ey(i, j) = By(i, j) = Bz(i, j) = 0.0;
       }
@@ -452,7 +367,7 @@ void gtest::Test_obj::set_default_field_OY(const Component E, const Component B)
           sin(2.0 * PI * (y - ay_by.first) /
             (ay_by.second - ay_by.first));
         Bz(i, j) =
-          sin(2.0 * PI * (y - ay_by.first) /
+          sin(2.0 * PI * (y * coeff - ay_by.first * coeff) /
             (ay_by.second - ay_by.first));
         Ey(i, j) = Ez(i, j) = Bx(i, j) = By(i, j) = 0.0;
       }

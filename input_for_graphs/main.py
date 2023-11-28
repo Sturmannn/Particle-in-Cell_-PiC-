@@ -60,6 +60,8 @@ for i in range(0, np.size(my_data_Ex)):
 # plt.grid()
 # plt.show()
 
+
+
 # Создание шести осей в трех рядах и два столбца
 fig, axs = plt.subplots(3, 2)
 
@@ -108,10 +110,10 @@ axs[2, 1].set_ylabel('Поле Bz')
 axs[2, 1].legend()
 axs[2, 1].grid()
 
-# plt.plot(x, my_data_By, label='Численное решение')
-# plt.plot(x, an_data_By, label='Аналитическое решение')
+# # plt.plot(x, my_data_Bx, label='Численное решение')
+# plt.plot(x, an_data_Bx, label='Аналитическое решение')
 # plt.xlabel(r'N$\Delta$x')
-# plt.ylabel('Поле By')
+# plt.ylabel('Поле Bx')
 # plt.legend()
 # plt.grid()
 

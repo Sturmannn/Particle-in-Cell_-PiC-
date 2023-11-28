@@ -7,69 +7,65 @@
 namespace gtest {
 
   enum class Component {Ex, Ey, Ez, Bx, By, Bz};
+  enum class Shift {shifted, unshifted};
 
   class Test_obj
   {
   public:
     Test_obj() = delete;
+
+    Test_obj(const Component _E, const Component _B, FDTD::FDTD& _field);
     Test_obj(const Component _E, const Component _B, FDTD::FDTD&& _field);
     Test_obj(const Test_obj& other_test_field);
     ~Test_obj() = default;
 
     Test_obj& operator = (const Test_obj& other_test_field);
+    Test_obj& operator = (const FDTD::FDTD& other_test_field);
     Test_obj& operator = (Test_obj&& other_test_field) noexcept;
 
-    void analytical_default_solution_OX(const Component E, const Component B, const double t);
-    void analytical_default_solution_OY(const Component E, const Component B, const double t);
-    void set_default_field_OX(const Component E, const Component B);
-    void set_default_field_OY(const Component E, const Component B);
-    void numerical_solution(const double t);
+    void analytical_default_solution_OX(const Component E, const Component B, const double t, const Shift _shift);
+    void analytical_default_solution_OY(const Component E, const Component B, const double t, const Shift _shift);
+    void set_default_field_OX(const Component E, const Component B, const Shift _shift);
+    void set_default_field_OY(const Component E, const Component B, const Shift _shift);
+    void numerical_solution(const double t, const Shift _shift);
     double get_global_err(const Component component);
-    void check_ñonvergence(Test_obj& other_test); // Check by component "E"
+    void print_ñonvergence(Test_obj& other_test); // Check by component "E"
+    //double get_convergence(); // Get by component "E"
+    static void write_convergence_to_file(const char* path, std::vector<double>& data);
 
     FDTD::FDTD field;
     FDTD::FDTD analytical_field;
   private:
     Component E, B;
-    void Courant_condition_check() const noexcept;
+    void Courant_condition_check(const Shift _shift) const noexcept;
     double helper_get_global_err(const Field::ComputingField& _E, const Field::ComputingField& _B);
     double set_sign(const Component E, const Component B);
   };
 
-  static void set_default_field_OY(FDTD::FDTD& _field, const Component E, const Component B);
 
-  static void set_default_field(FDTD::FDTD& _field,
-    std::pair<double, double>& ax_bx);
-
-  static void analytical_default_solution(FDTD::FDTD& _field,
-    std::pair<double, double>& ax_bx,
-    double t);
-
-  static double get_global_err(Field::ComputingField& field_1, Field::ComputingField& field_2);
-
-
-  static void Courant_condition_check(const double _dt, const double _dx);
-
-  TEST(Test_construcrot, proverka)
+  TEST(Test_version_comparison, shifted_OY)
   {
     std::pair<uint64_t, uint64_t> Nx_Ny = { 64ull, 64ull };
     std::pair<double, double> ax_ay = { 0.0, 0.0 };
     std::pair<double, double> bx_by = { 1.0, 1.0 };
     double dt = 2e-15;
+    //dt = 0.4625e-12;
     //double t = 2e-14;
     double t = 1e-12;
+    //t = 1e-10;
 
     Component E = Component::Ez;
     Component B = Component::Bx;
+    Shift shift = Shift::shifted;
 
     FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
     Test_obj test(E, B, std::move(field));
-    test.analytical_default_solution_OY(E, B, t);
-    test.set_default_field_OY(E, B);
+    test.analytical_default_solution_OY(E, B, t, shift);
+    test.set_default_field_OY(E, B, shift);
 
     //test.analytical_default_solution_OX(E, B, t);
     //test.set_default_field_OX(E, B);
-    test.numerical_solution(t);
+    test.numerical_solution(t, shift);
 
     Field::ComputingField::clear_file(path_to_calculated_data);
     Field::ComputingField::clear_file(path_to_analytic_data);
@@ -117,7 +113,7 @@ namespace gtest {
   //  analytical_field.write_fields_to_file(path_to_analytic_data);
   //}
 
-  TEST(Test, Checking_the_convergence)
+  TEST(Test_version_comparison, UNSHIFTED_Checking_the_convergence__1_iteration)
   {
     std::pair<uint64_t, uint64_t> Nx_Ny = { 64ull, 64ull };
     std::pair<double, double> ax_ay = { 0.0, 0.0 };
@@ -132,11 +128,12 @@ namespace gtest {
 
     Component E = Component::Ez;
     Component B = Component::Bx;
+    Shift shift = Shift::unshifted;
 
     Test_obj test(E, B, std::move(field));
-    test.analytical_default_solution_OY(E, B, t);
-    test.set_default_field_OY(E, B);
-    test.numerical_solution(t);
+    test.analytical_default_solution_OY(E, B, t, shift);
+    test.set_default_field_OY(E, B, shift);
+    test.numerical_solution(t, shift);
 
 
 
@@ -161,11 +158,11 @@ namespace gtest {
 
 
     Test_obj test_2(E, B, std::move(field_2));
-    test_2.analytical_default_solution_OY(E, B, t);
-    test_2.set_default_field_OY(E, B);
-    test_2.numerical_solution(t);
+    test_2.analytical_default_solution_OY(E, B, t, shift);
+    test_2.set_default_field_OY(E, B, shift);
+    test_2.numerical_solution(t, shift);
 
-    test.check_ñonvergence(test_2);
+    test.print_ñonvergence(test_2);
 
     //Courant_condition_check(dt, field_2.get_dx());
 
@@ -182,6 +179,89 @@ namespace gtest {
     //std::cout << "difference = " << first_err / second_err << '\n';
 
   }
+
+  TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration)
+  {
+    std::pair<uint64_t, uint64_t> Nx_Ny = { 64ull, 64ull };
+    std::pair<double, double> ax_ay = { 0.0, 0.0 };
+    std::pair<double, double> bx_by = { 1.0, 1.0 };
+
+    double dt = 1e-15;
+    //double t = 2e-14;
+    double t = 1e-13;
+
+    FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
+
+
+    Component E = Component::Ez;
+    Component B = Component::Bx;
+    Shift shift = Shift::shifted;
+
+    Test_obj test(E, B, std::move(field));
+    test.analytical_default_solution_OY(E, B, t, shift);
+    test.set_default_field_OY(E, B, shift);
+    test.numerical_solution(t, shift);
+
+    //=====Second field=====
+
+    Nx_Ny = { 128ull, 128ull };
+    dt = dt / 2;
+
+
+    FDTD::FDTD field_2(Nx_Ny, ax_ay, bx_by, dt);
+
+
+    Test_obj test_2(E, B, std::move(field_2));
+    test_2.analytical_default_solution_OY(E, B, t, shift);
+    test_2.set_default_field_OY(E, B, shift);
+    test_2.numerical_solution(t, shift);
+
+    test.print_ñonvergence(test_2);
+  }
+
+  //TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__several_iterations)
+  //{
+  //  std::pair<uint64_t, uint64_t> Nx_Ny = { 64ull, 64ull };
+  //  std::pair<double, double> ax_ay = { 0.0, 0.0 };
+  //  std::pair<double, double> bx_by = { 1.0, 1.0 };
+
+  //  double dt = 1e-15;
+  //  //double t = 2e-14;
+  //  double t = 1e-13;
+
+  //  Component E = Component::Ez;
+  //  Component B = Component::Bx;
+  //  Shift shift = Shift::shifted;
+  //  double error = 0.0;
+
+  //  std::vector<double> convergences;
+  //  //FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
+  //  //Test_obj test(E, B, std::move(field));
+  //  //test.analytical_default_solution_OY(E, B, t, shift);
+  //  //test.set_default_field_OY(E, B, shift);
+  //  //test.numerical_solution(t, shift);
+  //  //convergences.push_back(test.get_global_err(E));
+  //  for (uint64_t i = 0ull; i < 3ull; ++i)
+  //  {
+  //    Nx_Ny.first *= (1ull << i);
+  //    Nx_Ny.second *= (1ull << i);
+  //    dt /= pow(2, i);
+  //    //FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt / (1ull >> i));
+  //    FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
+  //    Test_obj test(E, B, field);
+  //    test.analytical_default_solution_OY(E, B, t, shift);
+  //    test.set_default_field_OY(E, B, shift);
+  //    test.numerical_solution(t, shift);
+
+  //    error = test.get_global_err(E);
+  //    convergences.push_back(error); // E
+  //    std::cout << error << ' ';
+  //    field.~FDTD();
+  //    test.~Test_obj();
+  //  }
+  //  std::cout << std::endl;
+  //  Test_obj::write_convergence_to_file(path_to_convergence_data, convergences);
+  //}
 }  // namespace gtest
 
 #endif  // !__TESTS_HPP__

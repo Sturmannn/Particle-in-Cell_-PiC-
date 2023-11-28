@@ -4,9 +4,12 @@
 #include <vector>
 #include <fstream>
 #include <iostream>
+#include <omp.h>
 
 constexpr char* path_to_analytic_data = "..\\..\\input_for_graphs\\analytical_data.csv"; // Writing E, B to a file
 constexpr char* path_to_calculated_data = "..\\..\\input_for_graphs\\my_data.csv";
+
+constexpr char* path_to_convergence_data = "..\\..\\input_for_graphs\\convergence.csv"; //Writing convergence
 
 namespace Field {
 

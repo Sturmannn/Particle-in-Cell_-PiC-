@@ -42,6 +42,7 @@ namespace FDTD {
     double get_dt(void) const noexcept { return dt; }
 
     void field_update(const double t);
+    void shifted_field_update(const double t);
 
     void write_fields_to_file_OX(const char* path, const double dx, uint64_t j = 0ull); //The row is fixed
     void write_fields_to_file_OY(const char* path, const double dy, uint64_t i = 0ull); //The col is fixed
