@@ -186,7 +186,7 @@ void FDTD::FDTD::shifted_field_update(const double t)
   //double start = omp_get_wtime();
   for (double time = 0.0; time < t; time += dt) // ÏÎÏÐÀÂÈÒÜ ÍÀ time += E_dt
   {
-#pragma omp parallel for collapse(2)
+//#pragma omp parallel for collapse(2)
     for (j = 0ull; j < Ny; ++j)
       for (i = 0ull; i < Nx; ++i)
       {
@@ -194,7 +194,7 @@ void FDTD::FDTD::shifted_field_update(const double t)
         By(i, j) = By(i, j) + C * B_dt * ((Ez(i + 1ull, j) - Ez(i, j)) / dx);
         Bz(i, j) = Bz(i, j) + C * B_dt * (((Ex(i, j + 1ull) - Ex(i, j)) / dy) - (Ey(i + 1ull, j) - Ey(i, j)) / dx);
       }
-#pragma omp parallel for collapse(2)
+//#pragma omp parallel for collapse(2)
     for (j = 0ull; j < Ny; ++j)
       for (i = 0ull; i < Nx; ++i)
       {
@@ -202,7 +202,7 @@ void FDTD::FDTD::shifted_field_update(const double t)
         Ey(i, j) = Ey(i, j) + C * E_dt * ((Bz(i - 1ull, j) - Bz(i, j)) / dx);
         Ez(i, j) = Ez(i, j) + C * E_dt * (((By(i, j) - By(i - 1ull, j)) / dx) - (Bx(i, j) - Bx(i, j - 1ull)) / dy);
       }
-#pragma omp parallel for collapse(2)
+//#pragma omp parallel for collapse(2)
     for (j = 0ull; j < Ny; ++j)
       for (i = 0ull; i < Nx; ++i)
       {

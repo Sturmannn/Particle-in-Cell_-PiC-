@@ -38,7 +38,7 @@ namespace gtest {
   private:
     Component E, B;
     void Courant_condition_check(const Shift _shift) const noexcept;
-    double helper_get_global_err(const Field::ComputingField& _E, const Field::ComputingField& _B);
+    double helper_get_global_err(const Field::ComputingField& field_1, const Field::ComputingField& field_2);
     double set_sign(const Component E, const Component B);
   };
 
