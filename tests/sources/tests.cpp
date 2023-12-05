@@ -209,13 +209,13 @@ double gtest::Test_obj::get_global_err(const Component component)
   }
 }
 
-void gtest::Test_obj::print_ñonvergence(Test_obj& other_test)
+void gtest::Test_obj::print_convergence(Test_obj& other_test)
 {
   std::cout << "\n\n The 1st error is: " << this->get_global_err(E);
   std::cout << "\n The 2nd error is: " << other_test.get_global_err(E);
 
-  std::cout << "\n Difference = " << this->get_global_err(E) / other_test.get_global_err(E) << "\n\n";
-  std::cout << "\n Difference = " << this->get_global_err(B) / other_test.get_global_err(B) << "\n\n";
+  std::cout << "\n Difference(E) = " << this->get_global_err(E) / other_test.get_global_err(E) << "\n\n";
+  std::cout << "\n Difference(B) = " << this->get_global_err(B) / other_test.get_global_err(B) << "\n\n";
 }
 
 //double gtest::Test_obj::get_convergence()
