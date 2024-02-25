@@ -160,7 +160,13 @@ void gtest::Test_obj::analytical_default_solution_OY(const Component E, const Co
 
 void gtest::Test_obj::numerical_solution(const double t, const Shift _shift)
 {
-  //Courant_condition_check(_shift);
+  Courant_condition_check(_shift);
+  (_shift == Shift::shifted) ? field.shifted_field_update(t) : field.field_update(t);
+}
+
+void gtest::Test_obj::numerical_solution(const uint64_t t, const Shift _shift)
+{
+  Courant_condition_check(_shift);
   (_shift == Shift::shifted) ? field.shifted_field_update(t) : field.field_update(t);
 }
 
@@ -253,14 +259,16 @@ void gtest::Test_obj::Courant_condition_check(const Shift _shift) const noexcept
 {
   if (_shift == Shift::unshifted)
   {
-    if (field.get_dt() <= (field.get_dx() * field.get_dx() / 2 * (C * sqrt(2)))) return; // Courant's condition of heat conduction
-    if (field.get_dt() <= (field.get_dy() * field.get_dy() / 2 * (C * sqrt(2)))) return;
+    //if (field.get_dt() <= (field.get_dx() * field.get_dx() / 2 * (C * sqrt(2)))) return; // Courant's condition of heat conduction
+    //if (field.get_dt() <= (field.get_dy() * field.get_dy() / 2 * (C * sqrt(2)))) return;
+    if (field.get_dt() <= (field.get_dx() * field.get_dx() / 2 * (C * sqrt(2))) && field.get_dt() <= (field.get_dy() * field.get_dy() / 2 * (C * sqrt(2)))) return;
   }
   else
   {
     double tmp = (field.get_dx() / (C * sqrt(2)));
-    if (field.get_dt() <= (field.get_dx() / (C * sqrt(2)))) return;
-    if (field.get_dt() <= (field.get_dy() / (C * sqrt(2)))) return;
+    //if (field.get_dt() <= (field.get_dx() / (C * sqrt(2)))) return;
+    //if (field.get_dt() <= (field.get_dy() / (C * sqrt(2)))) return;
+    if (field.get_dt() <= (field.get_dx() / (C * sqrt(2))) && field.get_dt() <= (field.get_dy() / (C * sqrt(2)))) return;
   }
   std::cout << "Courant's condition is not satisfied\n";
 

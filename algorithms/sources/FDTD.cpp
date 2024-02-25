@@ -171,6 +171,41 @@ void FDTD::FDTD::field_update(const double t) {
   //    }
 }
 
+void FDTD::FDTD::field_update(const uint64_t t)
+{
+  if (dt == 0.0)
+  {
+    std::cout << "Time step is null";
+    exit(-1);
+  }
+
+  uint64_t i = 0ull;
+  uint64_t j = 0ull;
+
+  for (uint64_t time = 0ull; time < t; time++)
+  {
+    for (j = 0ull; j < Ny; ++j)
+      for (i = 0ull; i < Nx; ++i) {
+        Ex(i, j) =
+          Ex(i, j) + C * dt * 0.5 * ((Bz(i, j + 1ull) - Bz(i, j - 1ull)) / dy);
+        Ey(i, j) =
+          Ey(i, j) - C * dt * 0.5 * ((Bz(i + 1ull, j) - Bz(i - 1ull, j)) / dx);
+        Ez(i, j) = Ez(i, j) + C * dt * 0.5 *
+          (((By(i + 1ull, j) - By(i - 1ull, j)) / dx) - (Bx(i, j + 1ull) - Bx(i, j - 1ull)) / dy);
+      }
+    for (j = 0ull; j < Ny; ++j)
+      for (i = 0ull; i < Nx; ++i) {
+        Bx(i, j) =
+          Bx(i, j) - C * dt * 0.5 * ((Ez(i, j + 1ull) - Ez(i, j - 1ull)) / dy);
+        By(i, j) =
+          By(i, j) + C * dt * 0.5 * ((Ez(i + 1ull, j) - Ez(i - 1ull, j)) / dx);
+        Bz(i, j) = Bz(i, j) - C * dt * 0.5 *
+          (((Ey(i + 1ull, j) - Ey(i - 1ull, j)) / dx) -
+            (Ex(i, j + 1ull) - Ex(i, j - 1ull)) / dy);
+      }
+  }
+}
+
 void FDTD::FDTD::shifted_field_update(const double t)
 {
   if (dt == 0.0)
@@ -213,6 +248,45 @@ void FDTD::FDTD::shifted_field_update(const double t)
   }
   //double end = omp_get_wtime();
   //std::cout << "Time = " << end - start << std::endl;
+}
+
+void FDTD::FDTD::shifted_field_update(const uint64_t t)
+{
+  if (dt == 0.0)
+  {
+    std::cout << "Time step is null";
+    exit(-1);
+  }
+
+  double B_dt = dt * 0.5;
+  double E_dt = dt;
+  uint64_t i = 0ull;
+  uint64_t j = 0ull;
+  //double start = omp_get_wtime();
+  for (uint64_t time = 0ull; time < t; time++)
+  {
+    for (j = 0ull; j < Ny; ++j)
+      for (i = 0ull; i < Nx; ++i)
+      {
+        Bx(i, j) = Bx(i, j) + C * B_dt * ((Ez(i, j) - Ez(i, j + 1ull)) / dy);
+        By(i, j) = By(i, j) + C * B_dt * ((Ez(i + 1ull, j) - Ez(i, j)) / dx);
+        Bz(i, j) = Bz(i, j) + C * B_dt * (((Ex(i, j + 1ull) - Ex(i, j)) / dy) - (Ey(i + 1ull, j) - Ey(i, j)) / dx);
+      }
+    for (j = 0ull; j < Ny; ++j)
+      for (i = 0ull; i < Nx; ++i)
+      {
+        Ex(i, j) = Ex(i, j) + C * E_dt * ((Bz(i, j) - Bz(i, j - 1ull)) / dy);
+        Ey(i, j) = Ey(i, j) + C * E_dt * ((Bz(i - 1ull, j) - Bz(i, j)) / dx);
+        Ez(i, j) = Ez(i, j) + C * E_dt * (((By(i, j) - By(i - 1ull, j)) / dx) - (Bx(i, j) - Bx(i, j - 1ull)) / dy);
+      }
+    for (j = 0ull; j < Ny; ++j)
+      for (i = 0ull; i < Nx; ++i)
+      {
+        Bx(i, j) = Bx(i, j) + C * B_dt * (Ez(i, j) - Ez(i, j + 1ull)) / dy;
+        By(i, j) = By(i, j) + C * B_dt * (Ez(i + 1ull, j) - Ez(i, j)) / dx;
+        Bz(i, j) = Bz(i, j) + C * B_dt * (((Ex(i, j + 1ull) - Ex(i, j)) / dy) - (Ey(i + 1ull, j) - Ey(i, j)) / dx);
+      }
+  }
 }
 
 void FDTD::FDTD::write_fields_to_file_OX(const char* path, const double dx, uint64_t j)

@@ -2,7 +2,7 @@ import csv
 import matplotlib.pyplot as plt
 import numpy as np
 
-with open("convergence.csv", "r") as file:
+with open("./input_for_graphs/convergence.csv", "r") as file:
     reader = csv.reader(file, delimiter=" ")
     convergence = [np.float64(x) for x in next(reader)]
 
