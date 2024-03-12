@@ -1,7 +1,8 @@
-#ifndef __ALGORITHMS_HPP__
-#define __ALGORITHMS_HPP__
+#ifndef __FDTD_HPP__
+#define __FDTD_HPP__
 
 #include <cmath>
+#include <tuple>
 
 #include "Field.hpp"
 
@@ -14,9 +15,9 @@ class FDTD {
 public:
   // Конструкторы и деструктор
   FDTD() = delete;
-  FDTD(const std::pair<uint64_t, uint64_t> &Nx_Ny,
-       const std::pair<double, double> &ax_ay,
-       const std::pair<double, double> &bx_by, double _dt);
+  FDTD(const std::tuple<uint64_t, uint64_t, uint64_t> &Nx_Ny_Nz,
+       const std::tuple<double, double, double> &ax_ay_az,
+       const std::tuple<double, double, double> &bx_by_bz, double _dt);
   FDTD(const FDTD &_fields);
   FDTD(FDTD &&_fields) noexcept;
   ~FDTD() = default;
@@ -28,11 +29,16 @@ public:
   // Методы для получения размеров сетки и коэффициентов
   uint64_t get_Nx(void) const noexcept { return Nx; }
   uint64_t get_Ny(void) const noexcept { return Ny; }
+  uint64_t get_Nz(void) const noexcept { return Nz; }
+
   std::pair<double, double> get_ax_bx(void) const noexcept {
     return std::make_pair(ax, bx);
   }
   std::pair<double, double> get_ay_by(void) const noexcept {
     return std::make_pair(ay, by);
+  }
+  std::pair<double, double> get_az_bz(void) const noexcept {
+    return std::make_pair(az, bz);
   }
 
   // Методы для получения компонент полей
@@ -46,7 +52,11 @@ public:
   // Методы для получения параметров сетки
   double get_dx(void) const noexcept { return dx; }
   double get_dy(void) const noexcept { return dy; }
+  double get_dz(void) const noexcept { return dz; }
   double get_dt(void) const noexcept { return dt; }
+
+  void set_dt(double _dt) { dt = _dt; }
+  void set_Nx_Ny_Nz(uint64_t _Nx, uint64_t _Ny, uint64_t _Nz);
 
   // Методы для обновления полей
   void field_update(const double t);
@@ -60,13 +70,16 @@ public:
                                uint64_t j = 0ull); // The row is fixed
   void write_fields_to_file_OY(const char *path, const double dy,
                                uint64_t i = 0ull); // The col is fixed
+  void write_fields_to_file_OZ(const char* path, const double dz,
+    uint64_t k = 0ull); // The col is fixed
 private:
   // Приватные члены данных
-  uint64_t Nx, Ny;                              // Размеры сетки
+  uint64_t Nx, Ny, Nz;                          // Размеры сетки
   Field::ComputingField Ex, Ey, Ez, Bx, By, Bz; // Компоненты полей
-  double ax, bx, ay, by, dx, dy, dt; // Коэффициенты и шаги
+  double ax, bx, ay, by, az, bz, dx, dy, dz, dt; // Коэффициенты и шаги
+  uint64_t check_Nz_dimension(uint64_t _Nz) { return (_Nz > 1 ?  _Nz :  0); }
 };
 
 } // namespace FDTD
 
-#endif // !__ALGORITHMS_HPP__
+#endif // !__FDTD_HPP__

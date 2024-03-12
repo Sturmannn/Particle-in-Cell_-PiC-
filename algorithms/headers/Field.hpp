@@ -20,7 +20,8 @@ namespace Field {
 class ComputingField {
 public:
   // Конструкторы и деструктор
-  ComputingField(const uint64_t _Nx, const uint64_t _Ny);
+  ComputingField() = delete;
+  ComputingField(const uint64_t _Nx, const uint64_t _Ny, const uint64_t _Nz = 1ull);
   ComputingField(const ComputingField &_field);
   ComputingField(ComputingField &&_field) noexcept;
   ~ComputingField() = default;
@@ -28,10 +29,13 @@ public:
   // Методы для получения размеров сетки
   uint64_t get_Nx() const noexcept { return Nx; }
   uint64_t get_Ny() const noexcept { return Ny; }
+  uint64_t get_Nz() const noexcept { return Nz; }
+  
+  void resize_field(const uint64_t _Nx, const uint64_t _Ny, const uint64_t _Nz = 1ull);
 
   // Операторы доступа к элементам поля
-  double &operator()(uint64_t i, uint64_t j);
-  const double &operator()(uint64_t i, uint64_t j) const;
+  double &operator()(uint64_t i, uint64_t j, uint64_t k = 0ull);
+  const double &operator()(uint64_t i, uint64_t j, uint64_t k = 0ull) const;
 
   // Операторы присваивания
   ComputingField &operator=(const ComputingField &_field);
@@ -41,15 +45,17 @@ public:
   void write_field_to_file_OX(const char *path, const uint64_t j = 0ull);
 
   // Запись поля в файл по фиксированной координате OY
-  void write_field_to_file_OY(const char *path, const uint64_t i = 0ull);
+  void write_field_to_file_OY(const char* path, const uint64_t i = 0ull);
+
+  void write_field_to_file_OZ(const char* path, uint64_t k = 0ull);
 
   // Очистка файла
   static void clear_file(const char *path);
 
+  std::vector<double> field; // Поле в виде одномерного вектора
 private:
   // Приватные члены данных
-  uint64_t Nx, Ny;           // Количество ячеек в сетке
-  std::vector<double> field; // Поле в виде одномерного вектора
+  uint64_t Nx, Ny, Nz;           // Количество ячеек в сетке
 };
 
 } // namespace Field

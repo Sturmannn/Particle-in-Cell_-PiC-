@@ -1,11 +1,13 @@
 #ifndef __TESTS_HPP__
 #define __TESTS_HPP__
 
+#include <functional>
 #include "FDTD.hpp"
 #include "gtest.h"
 
 namespace gtest {
 
+enum class Axis {Ox, Oy, Oz};
 enum class Component { Ex, Ey, Ez, Bx, By, Bz };
 enum class Shift { shifted, unshifted };
 
@@ -24,16 +26,16 @@ public:
   Test_obj &operator=(Test_obj &&other_test_field) noexcept;
 
   // Методы для аналитического решения и установки полей
-  void analytical_default_solution_OX(const Component E, const Component B,
-                                      const double t, const Shift _shift);
-  void analytical_default_solution_OY(const Component E, const Component B,
+  //void analytical_default_solution_OX(const Component E, const Component B,
+  //                                    const double t, const Shift _shift);
+  void analytical_default_solution(const Component E, const Component B,
                                       const double t, const Shift _shift);
   void set_default_field_OX(const Component E, const Component B,
                             const Shift _shift);
-  void set_default_field_OY(const Component E, const Component B,
+  void set_default_field(const Component E, const Component B,
                             const Shift _shift);
 
-  // Метод для дальнейшего вызова соответствующего численного решения (shifted /
+  // Методы для дальнейшего вызова соответствующего численного решения (shifted /
   // unshifted)
   void numerical_solution(const double t, const Shift _shift);
   void numerical_solution(const uint64_t t, const Shift _shift);
@@ -63,13 +65,13 @@ private:
   // Вспомогательные методы
   double helper_get_global_err(const Field::ComputingField &field_1,
                                const Field::ComputingField &field_2);
-  double set_sign(const Component E, const Component B);
+  //double set_sign(const Component E, const Component B);
 };
 
 TEST(Test_version_comparison, shifted_OY) {
-  std::pair<uint64_t, uint64_t> Nx_Ny = {64ull, 64ull};
-  std::pair<double, double> ax_ay = {0.0, 0.0};
-  std::pair<double, double> bx_by = {1.0, 1.0};
+  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = {16ull, 16ull, 16ull};
+  std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
+  std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   double dt = 2e-15;
   // dt = 0.4625e-12;
   // double t = 2e-14;
@@ -77,18 +79,22 @@ TEST(Test_version_comparison, shifted_OY) {
   //double t = 1e-12;
   // t = 1e-10;
 
-  double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
+
+  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
+  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
+
   dt = 0.25 * dx / C;
-  uint64_t t = 1000;
+  uint64_t t = 10;
 
-  Component E = Component::Ez;
-  Component B = Component::Bx;
-  Shift shift = Shift::unshifted;
+  Component E = Component::Ex;
+  Component B = Component::By;
+  Shift shift = Shift::shifted;
 
-  FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
+  //FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
+  FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
   Test_obj test(E, B, std::move(field));
-  test.analytical_default_solution_OY(E, B, t * dt, shift);
-  test.set_default_field_OY(E, B, shift);
+  test.analytical_default_solution(E, B, t * dt, shift);
+  test.set_default_field(E, B, shift);
 
   // test.analytical_default_solution_OX(E, B, t);
   // test.set_default_field_OX(E, B);
@@ -97,9 +103,9 @@ TEST(Test_version_comparison, shifted_OY) {
   Field::ComputingField::clear_file(path_to_calculated_data);
   Field::ComputingField::clear_file(path_to_analytic_data);
 
-  test.field.write_fields_to_file_OY(path_to_calculated_data,
+  test.field.write_fields_to_file_OZ(path_to_calculated_data,
                                      test.field.get_dy());
-  test.analytical_field.write_fields_to_file_OY(path_to_analytic_data,
+  test.analytical_field.write_fields_to_file_OZ(path_to_analytic_data,
                                                 test.field.get_dy());
 
   // test.field.write_fields_to_file_OX(path_to_calculated_data,
@@ -216,47 +222,50 @@ TEST(Test_version_comparison, shifted_OY) {
 //
 //}
 
+//=======================================================================================================================
+
 TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
-  std::pair<uint64_t, uint64_t> Nx_Ny = {64ull, 64ull};
-  std::pair<double, double> ax_ay = {0.0, 0.0};
-  std::pair<double, double> bx_by = {1.0, 1.0};
+  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = { 16ull, 16ull, 16ull };
+  std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
+  std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
   double start = omp_get_wtime();
 
   double dt = 1e-15;
   // double t = 2e-14;
-  double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
+  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
+  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
   dt = 0.25 * dx / C;
   //double t = 1e-12;
 
 
   //t = (bx_by.first - ax_ay.first) / C * 0.25;
-  uint64_t t = 100; // Задание количества итераций
+  uint64_t t = 10; // Задание количества итераций
 
-  FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
+  FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
 
   Component E = Component::Ez;
   Component B = Component::Bx;
-  Shift shift = Shift::unshifted;
+  Shift shift = Shift::shifted;
 
   Test_obj test(E, B, std::move(field));
-  test.analytical_default_solution_OY(E, B, t * dt, shift);  // t * dt OR t
-  test.set_default_field_OY(E, B, shift);
+  test.analytical_default_solution(E, B, t * dt, shift);  // t * dt OR t
+  test.set_default_field(E, B, shift);
   test.numerical_solution(t, shift);
 
   //=====Second field=====
 
-  Nx_Ny = {128ull, 128ull};
-  dt = dt / 4;
-  t *= 4;
+  Nx_Ny_Nz = std::make_tuple(32ull, 32ull, 32ull);
+  dt = dt / 2;
+  t *= 2;
 
   //dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
   //dt = 0.25 * dx / C;
 
-  FDTD::FDTD field_2(Nx_Ny, ax_ay, bx_by, dt);
+  FDTD::FDTD field_2(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
 
   Test_obj test_2(E, B, std::move(field_2));
-  test_2.analytical_default_solution_OY(E, B, t * dt, shift); // t * dt OR t
-  test_2.set_default_field_OY(E, B, shift);
+  test_2.analytical_default_solution(E, B, t * dt, shift); // t * dt OR t
+  test_2.set_default_field(E, B, shift);
   test_2.numerical_solution(t, shift);
 
   double end = omp_get_wtime();
@@ -265,50 +274,78 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
   test.print_convergence(test_2);
 }
 
-// TEST(Test_version_comparison,
-// SHIFTED_Checking_the_convergence__several_iterations)
+//=======================================================================================================================
+
+//TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__several_iterations)
 //{
-//  std::pair<uint64_t, uint64_t> Nx_Ny = { 64ull, 64ull };
-//  std::pair<double, double> ax_ay = { 0.0, 0.0 };
-//  std::pair<double, double> bx_by = { 1.0, 1.0 };
-
-//  double dt = 1e-15;
-//  //double t = 2e-14;
-//  double t = 1e-13;
-
+//  std::cout << "======================Start several operations======================\n";
+//
+//  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = { 16ull, 16ull, 1ull }; // starting grid
+//  std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
+//  std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
+//
+//  auto multiply_by_two = [](const auto& element) { return element * 2; };
+//
+//  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
+//  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
+//  double dt = 0.25 * dx / C;
+//  uint64_t t = 10;
+//
+//  FDTD::FDTD field_1(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
+//
 //  Component E = Component::Ez;
 //  Component B = Component::Bx;
 //  Shift shift = Shift::shifted;
-//  double error = 0.0;
-
-//  std::vector<double> convergences;
-//  //FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
-//  //Test_obj test(E, B, std::move(field));
-//  //test.analytical_default_solution_OY(E, B, t, shift);
-//  //test.set_default_field_OY(E, B, shift);
-//  //test.numerical_solution(t, shift);
-//  //convergences.push_back(test.get_global_err(E));
-//  for (uint64_t i = 0ull; i < 3ull; ++i)
+//
+//  Test_obj test(E, B, std::move(field_1));
+//
+//  test.analytical_default_solution_OY(E, B, t * dt, shift);
+//  test.set_default_field_OY(E, B, shift);
+//  test.numerical_solution(t, shift);
+//
+//
+//  //Nx_Ny = { Nx_Ny.first * 2, Nx_Ny.second * 2 };
+//  //t *= 4;
+//  //dt /= 4;
+//  FDTD::FDTD field_2(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
+//  Test_obj another_test(E, B, std::move(field_2));
+//  //another_test.analytical_default_solution_OY(E, B, t * dt, shift);
+//  //another_test.set_default_field_OY(E, B, shift);
+//  //another_test.numerical_solution(t, shift);
+//
+//  //test.print_convergence(another_test);
+//
+//  uint64_t Nx, Ny, Nz;
+//  std::tie(Nx, Ny, Nz) = Nx_Ny_Nz;
+//  for (uint8_t i = 0; i < 4; i++)
 //  {
-//    Nx_Ny.first *= (1ull << i);
-//    Nx_Ny.second *= (1ull << i);
-//    dt /= pow(2, i);
-//    //FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt / (1ull >> i));
-//    FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
-//    Test_obj test(E, B, field);
-//    test.analytical_default_solution_OY(E, B, t, shift);
-//    test.set_default_field_OY(E, B, shift);
-//    test.numerical_solution(t, shift);
-
-//    error = test.get_global_err(E);
-//    convergences.push_back(error); // E
-//    std::cout << error << ' ';
-//    field.~FDTD();
-//    test.~Test_obj();
+//    Nx *= 2; Ny *= 2;
+//    if (Nz != 1ull) Nz *= 2;
+//
+//    if (shift == Shift::shifted)
+//    {
+//      t *= 2;
+//      dt /= 2;
+//    }
+//    else
+//    {
+//      t *= 4;
+//      dt /= 4;
+//    }
+//    //another_test.field.set_Nx_Ny(Nx_Ny.first, Nx_Ny.second);
+//    another_test.field.set_Nx_Ny_Nz(Nx, Ny, Nz);
+//    another_test.field.set_dt(dt);
+//    //another_test.analytical_field.set_Nx_Ny(Nx_Ny.first, Nx_Ny.second);
+//    another_test.analytical_field.set_Nx_Ny_Nz(Nx, Ny, Nz);
+//    another_test.analytical_field.set_dt(dt);
+//    another_test.analytical_default_solution_OY(E, B, t * dt, shift);
+//    another_test.set_default_field_OY(E, B, shift);
+//    another_test.numerical_solution(t, shift);
+//    test.print_convergence(another_test);
+//    //test = another_test;
 //  }
-//  std::cout << std::endl;
-//  Test_obj::write_convergence_to_file(path_to_convergence_data, convergences);
 //}
+
 } // namespace gtest
 
 #endif // !__TESTS_HPP__

@@ -1,25 +1,30 @@
 #include "FDTD.hpp"
 
-FDTD::FDTD::FDTD(const std::pair<uint64_t, uint64_t>& Nx_Ny,
-  const std::pair<double, double>& ax_ay,
-  const std::pair<double, double>& bx_by, double _dt)
-  : Ex(Nx_Ny.first, Nx_Ny.second),
-  Ey(Nx_Ny.first, Nx_Ny.second),
-  Ez(Nx_Ny.first, Nx_Ny.second),
-  Bx(Nx_Ny.first, Nx_Ny.second),
-  By(Nx_Ny.first, Nx_Ny.second),
-  Bz(Nx_Ny.first, Nx_Ny.second) {
-  Nx = Nx_Ny.first;
-  Ny = Nx_Ny.second;
+FDTD::FDTD::FDTD(const std::tuple<uint64_t, uint64_t, uint64_t>& Nx_Ny_Nz,
+  const std::tuple<double, double, double>& ax_ay_az,
+  const std::tuple<double, double, double>& bx_by_bz, double _dt)
+  : Ex(std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), std::get<2>(Nx_Ny_Nz)),
+  Ey(std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), std::get<2>(Nx_Ny_Nz)),
+  Ez(std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), std::get<2>(Nx_Ny_Nz)),
+  Bx(std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), std::get<2>(Nx_Ny_Nz)),
+  By(std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), std::get<2>(Nx_Ny_Nz)),
+  Bz(std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), std::get<2>(Nx_Ny_Nz)) {
+  
+  Nx = std::get<0>(Nx_Ny_Nz);
+  Ny = std::get<1>(Nx_Ny_Nz);
+  Nz = std::get<2>(Nx_Ny_Nz);
 
-  ax = ax_ay.first;
-  ay = ax_ay.second;
+  ax = std::get<0>(ax_ay_az);
+  ay = std::get<1>(ax_ay_az);
+  az = std::get<2>(ax_ay_az);
 
-  bx = bx_by.first;
-  by = bx_by.second;
+  bx = std::get<0>(bx_by_bz);
+  by = std::get<1>(bx_by_bz);
+  bz = std::get<2>(bx_by_bz);
 
   dx = (bx - ax) / Nx;
   dy = (by - ay) / Ny;
+  dz = (bz - az) / Nz;
 
   dt = _dt;
 }
@@ -35,15 +40,19 @@ FDTD::FDTD::FDTD(const FDTD& _fields)
 
   Nx = _fields.Nx;
   Ny = _fields.Ny;
+  Nz = _fields.Nz;
 
   ax = _fields.ax;
   ay = _fields.ay;
+  az = _fields.az;
 
   bx = _fields.bx;
   by = _fields.by;
+  bz = _fields.bz;
 
   dx = _fields.dx;
   dy = _fields.dy;
+  dz = _fields.dz;
 
   dt = _fields.dt;
 }
@@ -55,46 +64,31 @@ FDTD::FDTD::FDTD(FDTD&& _fields) noexcept
   Bx(std::move(_fields.Bx)),
   By(std::move(_fields.By)),
   Bz(std::move(_fields.Bz)) {
-  
-  Nx = std::move(_fields.Nx);
-  Ny = std::move(_fields.Ny);
 
-  ax = std::move(_fields.ax);
-  ay = std::move(_fields.ay);
-  
-  bx = std::move(_fields.bx);
-  by = std::move(_fields.by);
-  
-  dx = std::move(_fields.dx);
-  dy = std::move(_fields.dy);
-  dt = std::move(_fields.dt);
+  Nx = _fields.Nx;
+  Ny = _fields.Ny;
+  Nz = _fields.Nz;
+
+  ax = _fields.ax;
+  ay = _fields.ay;
+  az = _fields.az;
+
+  bx = _fields.bx;
+  by = _fields.by;
+  bz = _fields.bz;
+
+  dx = _fields.dx;
+  dy = _fields.dy;
+  dz = _fields.dz;
+
+  dt = _fields.dt;
 }
 
 FDTD::FDTD& FDTD::FDTD::operator=(const FDTD& _fields)
 {
   if (this != &_fields)
   {
-    Ex = _fields.Ex;
-    Ey = _fields.Ey;
-    Ez = _fields.Ez;
-    
-    Bx = _fields.Bx;
-    By = _fields.By;
-    Bz = _fields.Bz;
-
-    Nx = _fields.Nx;
-    Ny = _fields.Ny;
-
-    ax = _fields.ax;
-    ay = _fields.ay;
-
-    bx = _fields.bx;
-    by = _fields.by;
-
-    dx = _fields.dx;
-    dy = _fields.dy;
-
-    dt = _fields.dt;
+    this->FDTD::FDTD(_fields);
   }
   return *this;
 }
@@ -103,26 +97,29 @@ FDTD::FDTD& FDTD::FDTD::operator=(FDTD&& _fields) noexcept
 {
   if (this != &_fields)
   {
-    Ex = std::move(_fields.Ex);
-    Ey = std::move(_fields.Ey);
-    Ez = std::move(_fields.Ez);
-    Bx = std::move(_fields.Bx);
-    By = std::move(_fields.By);
-    Bz = std::move(_fields.Bz);
-
-    Nx = std::move(Nx);
-    Ny = std::move(Ny);
-
-    ax = std::move(ax);
-    ay = std::move(ay);
-    bx = std::move(bx);
-    by = std::move(by);
-
-    dx = std::move(dx);
-    dy = std::move(dy);
-    dt = std::move(dt);
+    this->FDTD::FDTD(std::move(_fields));
   }
   return *this;
+}
+
+void FDTD::FDTD::set_Nx_Ny_Nz(uint64_t _Nx, uint64_t _Ny, uint64_t _Nz)
+{
+  Nx = _Nx;
+  Ny = _Ny;
+
+  if (!Nz) _Nz = 1ull;
+  else Nz = _Nz;
+
+  dx = (bx - ax) / Nx;
+  dy = (by - ay) / Ny;
+  dz = (bz - az) / Nz;
+
+  Ex.resize_field(_Nx, _Ny, _Nz);
+  Ey.resize_field(_Nx, _Ny, _Nz);
+  Ez.resize_field(_Nx, _Ny, _Nz);
+  Bx.resize_field(_Nx, _Ny, _Nz);
+  By.resize_field(_Nx, _Ny, _Nz);
+  Bz.resize_field(_Nx, _Ny, _Nz);
 }
 
 void FDTD::FDTD::field_update(const double t) {
@@ -218,33 +215,35 @@ void FDTD::FDTD::shifted_field_update(const double t)
   double E_dt = dt;
   uint64_t i = 0ull;
   uint64_t j = 0ull;
+  uint64_t k = 0ull;
+
   //double start = omp_get_wtime();
   for (double time = 0.0; time < t; time += dt) // ÏÎÏÐÀÂÈÒÜ ÍÀ time += E_dt
   {
-//#pragma omp parallel for collapse(2)
-    for (j = 0ull; j < Ny; ++j)
-      for (i = 0ull; i < Nx; ++i)
-      {
-        Bx(i, j) = Bx(i, j) + C * B_dt * ((Ez(i, j) - Ez(i, j + 1ull)) / dy);
-        By(i, j) = By(i, j) + C * B_dt * ((Ez(i + 1ull, j) - Ez(i, j)) / dx);
-        Bz(i, j) = Bz(i, j) + C * B_dt * (((Ex(i, j + 1ull) - Ex(i, j)) / dy) - (Ey(i + 1ull, j) - Ey(i, j)) / dx);
-      }
-//#pragma omp parallel for collapse(2)
-    for (j = 0ull; j < Ny; ++j)
-      for (i = 0ull; i < Nx; ++i)
-      {
-        Ex(i, j) = Ex(i, j) + C * E_dt * ((Bz(i, j) - Bz(i, j - 1ull)) / dy);
-        Ey(i, j) = Ey(i, j) + C * E_dt * ((Bz(i - 1ull, j) - Bz(i, j)) / dx);
-        Ez(i, j) = Ez(i, j) + C * E_dt * (((By(i, j) - By(i - 1ull, j)) / dx) - (Bx(i, j) - Bx(i, j - 1ull)) / dy);
-      }
-//#pragma omp parallel for collapse(2)
-    for (j = 0ull; j < Ny; ++j)
-      for (i = 0ull; i < Nx; ++i)
-      {
-        Bx(i, j) = Bx(i, j) + C * B_dt * (Ez(i, j) - Ez(i, j + 1ull)) / dy;
-        By(i, j) = By(i, j) + C * B_dt * (Ez(i + 1ull, j) - Ez(i, j)) / dx;
-        Bz(i, j) = Bz(i, j) + C * B_dt * (((Ex(i, j + 1ull) - Ex(i, j)) / dy) - (Ey(i + 1ull, j) - Ey(i, j)) / dx);
-      }
+    for (i = 0ull; i < Nx; ++i)
+      for (j = 0ull; j < Ny; ++j)
+        for (k = 0ull; k < Nz; ++k)
+        {
+          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+        }
+    for (i = 0ull; i < Nx; ++i)
+      for (j = 0ull; j < Ny; ++j)
+        for (k = 0ull; k < Nz; ++k)
+        {
+          Ex(i, j, k) = Ex(i, j, k) + C * E_dt * ((Bz(i, j, k) - Bz(i, j - 1, k)) / dy - (By(i, j, k) - By(i, j, k - 1)) / dz);
+          Ey(i, j, k) = Ey(i, j, k) + C * E_dt * ((Bx(i, j, k) - Bx(i, j, k - 1)) / dz - (Bz(i, j, k) - Bz(i - 1, j, k)) / dx);
+          Ez(i, j, k) = Ez(i, j, k) + C * E_dt * ((By(i, j, k) - By(i - 1, j, k)) / dx - (Bx(i, j, k) - Bx(i, j - 1, k)) / dy);
+        }
+    for (i = 0ull; i < Nx; ++i)
+      for (j = 0ull; j < Ny; ++j)
+        for (k = 0ull; k < Nz; ++k)
+        {
+          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+        }
   }
   //double end = omp_get_wtime();
   //std::cout << "Time = " << end - start << std::endl;
@@ -262,30 +261,34 @@ void FDTD::FDTD::shifted_field_update(const uint64_t t)
   double E_dt = dt;
   uint64_t i = 0ull;
   uint64_t j = 0ull;
+  uint64_t k = 0ull;
   //double start = omp_get_wtime();
   for (uint64_t time = 0ull; time < t; time++)
   {
-    for (j = 0ull; j < Ny; ++j)
-      for (i = 0ull; i < Nx; ++i)
-      {
-        Bx(i, j) = Bx(i, j) + C * B_dt * ((Ez(i, j) - Ez(i, j + 1ull)) / dy);
-        By(i, j) = By(i, j) + C * B_dt * ((Ez(i + 1ull, j) - Ez(i, j)) / dx);
-        Bz(i, j) = Bz(i, j) + C * B_dt * (((Ex(i, j + 1ull) - Ex(i, j)) / dy) - (Ey(i + 1ull, j) - Ey(i, j)) / dx);
-      }
-    for (j = 0ull; j < Ny; ++j)
-      for (i = 0ull; i < Nx; ++i)
-      {
-        Ex(i, j) = Ex(i, j) + C * E_dt * ((Bz(i, j) - Bz(i, j - 1ull)) / dy);
-        Ey(i, j) = Ey(i, j) + C * E_dt * ((Bz(i - 1ull, j) - Bz(i, j)) / dx);
-        Ez(i, j) = Ez(i, j) + C * E_dt * (((By(i, j) - By(i - 1ull, j)) / dx) - (Bx(i, j) - Bx(i, j - 1ull)) / dy);
-      }
-    for (j = 0ull; j < Ny; ++j)
-      for (i = 0ull; i < Nx; ++i)
-      {
-        Bx(i, j) = Bx(i, j) + C * B_dt * (Ez(i, j) - Ez(i, j + 1ull)) / dy;
-        By(i, j) = By(i, j) + C * B_dt * (Ez(i + 1ull, j) - Ez(i, j)) / dx;
-        Bz(i, j) = Bz(i, j) + C * B_dt * (((Ex(i, j + 1ull) - Ex(i, j)) / dy) - (Ey(i + 1ull, j) - Ey(i, j)) / dx);
-      }
+    for (i = 0ull; i < Nx; ++i)
+      for (j = 0ull; j < Ny; ++j)
+        for (k = 0ull; k < Nz; ++k)
+        {
+          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+        }
+    for (i = 0ull; i < Nx; ++i)
+      for (j = 0ull; j < Ny; ++j)
+        for (k = 0ull; k < Nz; ++k)
+        {
+          Ex(i, j, k) = Ex(i, j, k) + C * E_dt * ((Bz(i, j, k) - Bz(i, j - 1, k)) / dy - (By(i, j, k) - By(i, j, k - 1)) / dz);
+          Ey(i, j, k) = Ey(i, j, k) + C * E_dt * ((Bx(i, j, k) - Bx(i, j, k - 1)) / dz - (Bz(i, j, k) - Bz(i - 1, j, k)) / dx);
+          Ez(i, j, k) = Ez(i, j, k) + C * E_dt * ((By(i, j, k) - By(i - 1, j, k)) / dx - (Bx(i, j, k) - Bx(i, j - 1, k)) / dy);
+        }
+    for (i = 0ull; i < Nx; ++i)
+      for (j = 0ull; j < Ny; ++j)
+        for (k = 0ull; k < Nz; ++k)
+        {
+          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+        }
   }
 }
 
@@ -326,5 +329,25 @@ void FDTD::FDTD::write_fields_to_file_OY(const char* path, const double dy, uint
     exit(-1);
   }
   outfile << dy << std::endl;
+  outfile.close();
+}
+
+void FDTD::FDTD::write_fields_to_file_OZ(const char* path, const double dz, uint64_t k)
+{
+  Ex.write_field_to_file_OZ(path);
+  Ey.write_field_to_file_OZ(path);
+  Ez.write_field_to_file_OZ(path);
+  Bx.write_field_to_file_OZ(path);
+  By.write_field_to_file_OZ(path);
+  Bz.write_field_to_file_OZ(path);
+
+  std::ofstream outfile;
+  outfile.open(path, std::ios::app);
+  if (!outfile.is_open())
+  {
+    std::cout << "The file can't be opened!" << std::endl;
+    exit(-1);
+  }
+  outfile << dz << std::endl;
   outfile.close();
 }
