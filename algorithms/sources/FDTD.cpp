@@ -263,11 +263,36 @@ void FDTD::FDTD::shifted_field_update(const uint64_t t)
   uint64_t j = 0ull;
   uint64_t k = 0ull;
   //double start = omp_get_wtime();
+#ifdef MPI
+
+  int rank, size;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  uint64_t Nx_local = get_Nx();
+  uint64_t Ny_local = get_Ny() / size;
+
+  Field::ComputingField Ex_local(Nx_local, Ny_local);
+  Field::ComputingField Ey_local(Nx_local, Ny_local);
+  Field::ComputingField Ez_local(Nx_local, Ny_local);
+  Field::ComputingField Bx_local(Nx_local, Ny_local);
+  Field::ComputingField By_local(Nx_local, Ny_local);
+  Field::ComputingField Bz_local(Nx_local, Ny_local);
+
+  // Пока что предполагается, что Ny кратно количеству процессов size! Также пока что рассматривается MPI для двумерного случая!
+  MPI_Scatter(Ex.data(), Nx_local * Ny_local, MPI_DOUBLE, Ex_local.data(), Nx_local * Ny_local, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Scatter(Ey.data(), Nx_local * Ny_local, MPI_DOUBLE, Ey_local.data(), Nx_local * Ny_local, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Scatter(Ez.data(), Nx_local * Ny_local, MPI_DOUBLE, Ez_local.data(), Nx_local * Ny_local, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+  MPI_Scatter(Bx.data(), Nx_local * Ny_local, MPI_DOUBLE, Bx_local.data(), Nx_local * Ny_local, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Scatter(By.data(), Nx_local * Ny_local, MPI_DOUBLE, By_local.data(), Nx_local * Ny_local, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Scatter(Bz.data(), Nx_local * Ny_local, MPI_DOUBLE, Bz_local.data(), Nx_local * Ny_local, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
   for (uint64_t time = 0ull; time < t; time++)
   {
-    for (i = 0ull; i < Nx; ++i)
-      for (j = 0ull; j < Ny; ++j)
-        for (k = 0ull; k < Nz; ++k)
+    for (i = 0; i < Nx; ++i)
+      for (j = 0; j < Ny; ++j)
+        for (k = 0; k < Nz; ++k)
         {
           Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
           By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
@@ -290,16 +315,72 @@ void FDTD::FDTD::shifted_field_update(const uint64_t t)
           Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
         }
   }
+
+
+#else  
+  for (uint64_t time = 0ull; time < t; time++)
+  {
+    for (i = 0; i < Nx; ++i)
+      for (j = 0; j < Ny; ++j)
+        for (k = 0; k < Nz; ++k)
+        {
+          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+        }
+    for (i = 0ull; i < Nx; ++i)
+      for (j = 0ull; j < Ny; ++j)
+        for (k = 0ull; k < Nz; ++k)
+        {
+          Ex(i, j, k) = Ex(i, j, k) + C * E_dt * ((Bz(i, j, k) - Bz(i, j - 1, k)) / dy - (By(i, j, k) - By(i, j, k - 1)) / dz);
+          Ey(i, j, k) = Ey(i, j, k) + C * E_dt * ((Bx(i, j, k) - Bx(i, j, k - 1)) / dz - (Bz(i, j, k) - Bz(i - 1, j, k)) / dx);
+          Ez(i, j, k) = Ez(i, j, k) + C * E_dt * ((By(i, j, k) - By(i - 1, j, k)) / dx - (Bx(i, j, k) - Bx(i, j - 1, k)) / dy);
+        }
+    for (i = 0ull; i < Nx; ++i)
+      for (j = 0ull; j < Ny; ++j)
+        for (k = 0ull; k < Nz; ++k)
+        {
+          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+        }
+  }
+#endif // MPI
 }
 
-void FDTD::FDTD::write_fields_to_file_OX(const char* path, const double dx, uint64_t j)
+void FDTD::FDTD::write_fields_to_file(const char* path, const Component E, const Component B, const double delta, const uint64_t row_number)
 {
-  Ex.write_field_to_file_OX(path);
-  Ey.write_field_to_file_OX(path);
-  Ez.write_field_to_file_OX(path);
-  Bx.write_field_to_file_OX(path);
-  By.write_field_to_file_OX(path);
-  Bz.write_field_to_file_OX(path);
+
+  Axis axis = get_axis(E, B);
+  switch (axis)
+  {
+  case Axis::Ox:
+    Ex.write_field_to_file_OX(path, row_number);
+    Ey.write_field_to_file_OX(path, row_number);
+    Ez.write_field_to_file_OX(path, row_number);
+    Bx.write_field_to_file_OX(path, row_number);
+    By.write_field_to_file_OX(path, row_number);
+    Bz.write_field_to_file_OX(path, row_number);
+    break;
+  case Axis::Oy:
+    Ex.write_field_to_file_OY(path, row_number);
+    Ey.write_field_to_file_OY(path, row_number);
+    Ez.write_field_to_file_OY(path, row_number);
+    Bx.write_field_to_file_OY(path, row_number);
+    By.write_field_to_file_OY(path, row_number);
+    Bz.write_field_to_file_OY(path, row_number);
+    break;
+  case Axis::Oz:
+    Ex.write_field_to_file_OZ(path, row_number);
+    Ey.write_field_to_file_OZ(path, row_number);
+    Ez.write_field_to_file_OZ(path, row_number);
+    Bx.write_field_to_file_OZ(path, row_number);
+    By.write_field_to_file_OZ(path, row_number);
+    Bz.write_field_to_file_OZ(path, row_number);
+    break;
+  default:
+    break;
+  }
 
   std::ofstream outfile;
   outfile.open(path, std::ios::app);
@@ -308,46 +389,18 @@ void FDTD::FDTD::write_fields_to_file_OX(const char* path, const double dx, uint
     std::cout << "The file can't be opened!" << std::endl;
     exit(-1);
   }
-  outfile << dx << std::endl;
+  outfile << delta << std::endl;
   outfile.close();
 }
 
-void FDTD::FDTD::write_fields_to_file_OY(const char* path, const double dy, uint64_t i)
+FDTD::Axis FDTD::FDTD::get_axis(const Component E, const Component B)
 {
-  Ex.write_field_to_file_OY(path);
-  Ey.write_field_to_file_OY(path);
-  Ez.write_field_to_file_OY(path);
-  Bx.write_field_to_file_OY(path);
-  By.write_field_to_file_OY(path);
-  Bz.write_field_to_file_OY(path);
-
-  std::ofstream outfile;
-  outfile.open(path, std::ios::app);
-  if (!outfile.is_open())
+  if ((E == Component::Ey && B == Component::Bz) || (E == Component::Ez && B == Component::By)) return Axis::Ox;
+  else if ((E == Component::Ez && B == Component::Bx) || (E == Component::Ex && B == Component::Bz)) return Axis::Oy;
+  else if ((E == Component::Ex && B == Component::By) || (E == Component::Ey && B == Component::Bx)) return Axis::Oz;
+  else
   {
-    std::cout << "The file can't be opened!" << std::endl;
+    std::cout << "\nGet_Axis: Error! Wrong Components!\n";
     exit(-1);
   }
-  outfile << dy << std::endl;
-  outfile.close();
-}
-
-void FDTD::FDTD::write_fields_to_file_OZ(const char* path, const double dz, uint64_t k)
-{
-  Ex.write_field_to_file_OZ(path);
-  Ey.write_field_to_file_OZ(path);
-  Ez.write_field_to_file_OZ(path);
-  Bx.write_field_to_file_OZ(path);
-  By.write_field_to_file_OZ(path);
-  Bz.write_field_to_file_OZ(path);
-
-  std::ofstream outfile;
-  outfile.open(path, std::ios::app);
-  if (!outfile.is_open())
-  {
-    std::cout << "The file can't be opened!" << std::endl;
-    exit(-1);
-  }
-  outfile << dz << std::endl;
-  outfile.close();
 }

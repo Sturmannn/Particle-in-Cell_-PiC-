@@ -1,54 +1,42 @@
 #ifndef __TESTS_HPP__
 #define __TESTS_HPP__
 
-#include <functional>
 #include "FDTD.hpp"
 #include "gtest.h"
 
+using FDTD::Component;
+using FDTD::Axis;
+
 namespace gtest {
 
-enum class Axis {Ox, Oy, Oz};
-enum class Component { Ex, Ey, Ez, Bx, By, Bz };
 enum class Shift { shifted, unshifted };
 
 class Test_obj {
 public:
-  // Конструкторы и деструктор
+
   Test_obj() = delete;
   Test_obj(const Component _E, const Component _B, FDTD::FDTD &_field);
   Test_obj(const Component _E, const Component _B, FDTD::FDTD &&_field);
   Test_obj(const Test_obj &other_test_field);
   ~Test_obj() = default;
 
-  // Операторы присваивания
   Test_obj &operator=(const Test_obj &other_test_field);
   Test_obj &operator=(const FDTD::FDTD &other_test_field);
   Test_obj &operator=(Test_obj &&other_test_field) noexcept;
 
-  // Методы для аналитического решения и установки полей
-  //void analytical_default_solution_OX(const Component E, const Component B,
-  //                                    const double t, const Shift _shift);
   void analytical_default_solution(const Component E, const Component B,
                                       const double t, const Shift _shift);
-  void set_default_field_OX(const Component E, const Component B,
-                            const Shift _shift);
+
   void set_default_field(const Component E, const Component B,
                             const Shift _shift);
 
-  // Методы для дальнейшего вызова соответствующего численного решения (shifted /
-  // unshifted)
   void numerical_solution(const double t, const Shift _shift);
   void numerical_solution(const uint64_t t, const Shift _shift);
 
-
-  // Метод для вычисления глобальной ошибки
   double get_global_err(const Component component);
 
-  // Метод для вывода результатов сходимости
   void print_convergence(Test_obj &other_test); // Check by component "E"
-  // double get_convergence(); // Get by component "E"
 
-  // Метод для записи сходимости в файл
   static void write_convergence_to_file(const char *path,
                                         std::vector<double> &data);
 
@@ -56,16 +44,10 @@ public:
   FDTD::FDTD analytical_field;
 
 private:
-  // Приватные члены данных
+
   Component E, B; // Компоненты поля
 
-  // Проверка условия Куранта
   void Courant_condition_check(const Shift _shift) const noexcept;
-
-  // Вспомогательные методы
-  double helper_get_global_err(const Field::ComputingField &field_1,
-                               const Field::ComputingField &field_2);
-  //double set_sign(const Component E, const Component B);
 };
 
 TEST(Test_version_comparison, shifted_OY) {
@@ -103,9 +85,9 @@ TEST(Test_version_comparison, shifted_OY) {
   Field::ComputingField::clear_file(path_to_calculated_data);
   Field::ComputingField::clear_file(path_to_analytic_data);
 
-  test.field.write_fields_to_file_OZ(path_to_calculated_data,
+  test.field.write_fields_to_file(path_to_calculated_data, E, B,
                                      test.field.get_dy());
-  test.analytical_field.write_fields_to_file_OZ(path_to_analytic_data,
+  test.analytical_field.write_fields_to_file(path_to_analytic_data, E, B,
                                                 test.field.get_dy());
 
   // test.field.write_fields_to_file_OX(path_to_calculated_data,
@@ -280,7 +262,7 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 //{
 //  std::cout << "======================Start several operations======================\n";
 //
-//  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = { 16ull, 16ull, 1ull }; // starting grid
+//  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = { 16ull, 16ull, 16ull }; // starting grid
 //  std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
 //  std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
 //
@@ -293,14 +275,14 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 //
 //  FDTD::FDTD field_1(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
 //
-//  Component E = Component::Ez;
-//  Component B = Component::Bx;
+//  Component E = Component::Ex;
+//  Component B = Component::By;
 //  Shift shift = Shift::shifted;
 //
 //  Test_obj test(E, B, std::move(field_1));
 //
-//  test.analytical_default_solution_OY(E, B, t * dt, shift);
-//  test.set_default_field_OY(E, B, shift);
+//  test.analytical_default_solution(E, B, t * dt, shift);
+//  test.set_default_field(E, B, shift);
 //  test.numerical_solution(t, shift);
 //
 //
@@ -338,8 +320,8 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 //    //another_test.analytical_field.set_Nx_Ny(Nx_Ny.first, Nx_Ny.second);
 //    another_test.analytical_field.set_Nx_Ny_Nz(Nx, Ny, Nz);
 //    another_test.analytical_field.set_dt(dt);
-//    another_test.analytical_default_solution_OY(E, B, t * dt, shift);
-//    another_test.set_default_field_OY(E, B, shift);
+//    another_test.analytical_default_solution(E, B, t * dt, shift);
+//    another_test.set_default_field(E, B, shift);
 //    another_test.numerical_solution(t, shift);
 //    test.print_convergence(another_test);
 //    //test = another_test;

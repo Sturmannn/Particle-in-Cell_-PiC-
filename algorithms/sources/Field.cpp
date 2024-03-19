@@ -92,18 +92,20 @@ void Field::ComputingField::write_field_to_file_OX(const char* path, const uint6
   outfile.open(path, std::ios::app);
   if(!outfile.is_open())
   {
-    std::cout << "The file can't be opened!" << std::endl;
+    std::cout << "\nThe file can't be opened!" << std::endl;
     exit(-1);
   }
   if (j >= Ny)
   {
-    std::cout << "Error: Going beyond the column indexing in the matrix (Writing field to the file)\n";
+    std::cout << "\nError: Going beyond the column indexing in the matrix (Writing field to the file)\n";
     exit(-1);
   }
   uint64_t i = 0ull;
+  uint64_t k = 0ull;
+
   for (; i < Nx - 1ull; ++i)
-    outfile << this->operator()(i, j) << ';';
-  outfile << this->operator()(i, j) << '\n';
+    outfile << this->operator()(i, j, k) << ';';
+  outfile << this->operator()(i, j, k) << '\n';
   outfile.close();
 }
 
@@ -113,18 +115,19 @@ void Field::ComputingField::write_field_to_file_OY(const char* path, const uint6
   outfile.open(path, std::ios::app);
   if (!outfile.is_open())
   {
-    std::cout << "The file can't be opened!" << std::endl;
+    std::cout << "\nThe file can't be opened!" << std::endl;
     exit(-1);
   }
   if (i >= Nx)
   {
-    std::cout << "Error: Going beyond the column indexing in the matrix (Writing field to the file)\n";
+    std::cout << "\nError: Going beyond the column indexing in the matrix (Writing field to the file)\n";
     exit(-1);
   }
   uint64_t j = 0ull;
+  uint64_t k = 0ull;
   for (; j < Ny - 1ull; ++j)
-    outfile << this->operator()(i, j) << ';';
-  outfile << this->operator()(i, j) << '\n';
+    outfile << this->operator()(i, j, k) << ';';
+  outfile << this->operator()(i, j, k) << '\n';
   outfile.close();
 }
 
@@ -134,16 +137,16 @@ void Field::ComputingField::write_field_to_file_OZ(const char* path, uint64_t k)
   outfile.open(path, std::ios::app);
   if (!outfile.is_open())
   {
-    std::cout << "The file can't be opened!" << std::endl;
+    std::cout << "\nThe file can't be opened!" << std::endl;
     exit(-1);
   }
   if (k >= Nz)
   {
-    std::cout << "Error: Going beyond the column indexing in the matrix (Writing field to the file)\n";
+    std::cout << "\nError: Going beyond the column indexing in the matrix (Writing field to the file)\n";
     exit(-1);
   }
-  uint64_t j = 0ull;
   uint64_t i = 0ull;
+  uint64_t j = 0ull;
   k = 0;
   for (; k < Nz - 1ull; ++k)
     outfile << this->operator()(i, j, k) << ';';

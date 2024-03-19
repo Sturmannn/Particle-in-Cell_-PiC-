@@ -3,13 +3,19 @@
 
 #include <cmath>
 #include <tuple>
+#include <mpi.h>
 
 #include "Field.hpp"
+
+//#define MPI
 
 constexpr double PI = 3.14159265358979323846;
 constexpr double C = 29979245800.0; // speed of light (CGS)
 
 namespace FDTD {
+
+enum class Component { Ex, Ey, Ez, Bx, By, Bz };
+enum class Axis { Ox, Oy, Oz };
 
 class FDTD {
 public:
@@ -65,19 +71,15 @@ public:
   void shifted_field_update(const double t);
   void shifted_field_update(const uint64_t t);
 
-  // Запись полей в файлы по фиксированным координатам OX и OY
-  void write_fields_to_file_OX(const char *path, const double dx,
-                               uint64_t j = 0ull); // The row is fixed
-  void write_fields_to_file_OY(const char *path, const double dy,
-                               uint64_t i = 0ull); // The col is fixed
-  void write_fields_to_file_OZ(const char* path, const double dz,
-    uint64_t k = 0ull); // The col is fixed
+  void write_fields_to_file(const char* path, Component E, Component B, const double delta,
+    const uint64_t row_number = 0ull); // The col is fixed
+  
+  static Axis get_axis(const Component E, const Component B);
 private:
   // Приватные члены данных
   uint64_t Nx, Ny, Nz;                          // Размеры сетки
   Field::ComputingField Ex, Ey, Ez, Bx, By, Bz; // Компоненты полей
   double ax, bx, ay, by, az, bz, dx, dy, dz, dt; // Коэффициенты и шаги
-  uint64_t check_Nz_dimension(uint64_t _Nz) { return (_Nz > 1 ?  _Nz :  0); }
 };
 
 } // namespace FDTD

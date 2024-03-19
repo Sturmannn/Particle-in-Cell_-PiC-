@@ -30,6 +30,8 @@ public:
   uint64_t get_Nx() const noexcept { return Nx; }
   uint64_t get_Ny() const noexcept { return Ny; }
   uint64_t get_Nz() const noexcept { return Nz; }
+
+  double* data() { return field.data(); }
   
   void resize_field(const uint64_t _Nx, const uint64_t _Ny, const uint64_t _Nz = 1ull);
 

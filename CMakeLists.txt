@@ -16,6 +16,12 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/GTestLib/headers)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/algorithms/headers)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Tests/headers)
 
+set(MPI_INCLUDE_DIR H:/Microsoft_MPI/SDK/Include)
+set(MPI_LIB_DIR 	H:/Microsoft_MPI/SDK/Lib/x64)
+set(MPI_LIBS 		H:/Microsoft_MPI/SDK/Lib/x64/msmpi.lib)
+
+include_directories(${MPI_INCLUDE_DIR})
+
 
 add_subdirectory(GTestLib)
 add_subdirectory(algorithms)
