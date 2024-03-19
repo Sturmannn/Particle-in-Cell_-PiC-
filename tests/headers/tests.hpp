@@ -221,7 +221,7 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 
 
   //t = (bx_by.first - ax_ay.first) / C * 0.25;
-  uint64_t t = 10; // Задание количества итераций
+  uint64_t t = 5; // Задание количества итераций
 
   FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
 

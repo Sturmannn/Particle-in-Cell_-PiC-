@@ -220,7 +220,7 @@ double gtest::Test_obj::get_global_err(const Component component)
       for (uint64_t j = 0ull; j < field.get_Ny(); ++j)
         for (uint64_t k = 0ull; k < field.get_Nz(); ++k)
           max_err = std::max(max_err, fabs(numerical_field(i, j, k) - analytical_field(i, j, k)));
-
+    
     return max_err;
   };
   switch (component)
@@ -251,13 +251,16 @@ double gtest::Test_obj::get_global_err(const Component component)
 
 void gtest::Test_obj::print_convergence(Test_obj& other_test)
 {
-  double this_E_error = this->get_global_err(E);
-  double this_B_error = this->get_global_err(B);
+  double this_E_error = 5;
+  this_E_error = this->get_global_err(this->E);
+  double this_B_error = this->get_global_err(this->B);
 
-  double other_E_error = other_test.get_global_err(E);
-  double other_B_error = other_test.get_global_err(B);
-  std::cout << "\n\n================================\n The 1st error is: " << this_E_error;
-  std::cout << "\n The 2nd error is: " << other_E_error;
+  double other_E_error = other_test.get_global_err(other_test.E);
+  double other_B_error = other_test.get_global_err(other_test.B);
+
+  std::cout << "this_E_error = " << this_E_error << '\n';
+  std::cout << "\n\n================================\n The 1st (E) error is: " << this_E_error;
+  std::cout << "\n The 2nd (E) error is: " << other_E_error;
 
   std::cout << "\n Difference(E) = " << this_E_error / other_E_error;
   std::cout << "\n Difference(B) = " << this_B_error / other_B_error << "\n================================" << "\n\n";
