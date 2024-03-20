@@ -259,9 +259,9 @@ void FDTD::FDTD::shifted_field_update(const uint64_t t)
 
   double B_dt = dt * 0.5;
   double E_dt = dt;
-  uint64_t i = 0ull;
-  uint64_t j = 0ull;
-  uint64_t k = 0ull;
+  int64_t i = 0ull;
+  int64_t j = 0ull;
+  int64_t k = 0ull;
   //double start = omp_get_wtime();
 #ifdef MPI
 
@@ -324,26 +324,142 @@ void FDTD::FDTD::shifted_field_update(const uint64_t t)
       for (j = 0; j < Ny; ++j)
         for (k = 0; k < Nz; ++k)
         {
-          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
-          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * (/*(Ey(i, j, k + 1) - Ey(i, j, k)) / dz*/ - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx /*- (Ex(i, j, k + 1) - Ex(i, j, k)) / dz*/);
           Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+          //std::cout << "i = " << i << " j = " << j << " k = " << k << '\n';
         }
+    // Обновляю границу - верх 2-х мерной системы
+    for (uint64_t x = 0; x < Bx.get_Nx(); ++x)
+    {
+      *(Bx.data() + x + 1) = Bx(x, Bx.get_Ny() - 1); // снизу
+      Bx(x, Bx.get_Ny()) = Bx(x, 0); // сверху
+
+      *(By.data() + x + 1) = By(x, By.get_Ny() - 1); // снизу
+      By(x, By.get_Ny() - 1) = By(x, 0); // сверху
+
+      *(Bz.data() + x + 1) = Bz(x, Bz.get_Ny() - 1); // снизу
+      Bz(x, Bz.get_Ny()) = Bz(x, 0); // сверху
+    }
+    for (uint64_t y = 0; y < Bx.get_Ny(); ++y)
+    {
+      Bx(-1, y) = Bx(Bx.get_Nx() - 1, y); // слева
+      Bx(Bx.get_Nx(), y) = Bx(0, y); // справа
+
+      By(-1, y) = By(By.get_Nx() - 1, y); // слева
+      By(By.get_Nx(), y) = By(0, y); // справа
+
+      Bz(-1, y) = Bz(Bz.get_Nx() - 1, y); // слева
+      Bz(Bz.get_Nx(), y) = Bz(0, y); // справа
+    }
+    Bx(-1, -1) = Bx(Bx.get_Nx() - 1, Bx.get_Ny() - 1); // левый нижний узел
+    Bx(-1, Bx.get_Ny()) = Bx(Bx.get_Nx() - 1, 0); // левый верхний узел
+    Bx(Bx.get_Nx(), Bx.get_Ny()) = Bx(0, 0); // правый верхний узел
+    *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // правый нижний узел
+
+    By(-1, -1) = By(By.get_Nx() - 1, By.get_Ny() - 1); // левый нижний узел
+    By(-1, By.get_Ny()) = By(By.get_Nx() - 1, 0); // левый верхний узел
+    By(By.get_Nx(), By.get_Ny()) = By(0, 0); // правый верхний узел
+    *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // правый нижний узел
+
+    Bz(-1, -1) = Bz(Bz.get_Nx() - 1, Bz.get_Ny() - 1); // левый нижний узел
+    Bz(-1, Bz.get_Ny()) = Bz(Bz.get_Nx() - 1, 0); // левый верхний узел
+    Bz(Bz.get_Nx(), Bz.get_Ny()) = Bz(0, 0); // правый верхний узел
+    *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // правый нижний узел
+
+
     for (i = 0ull; i < Nx; ++i)
       for (j = 0ull; j < Ny; ++j)
         for (k = 0ull; k < Nz; ++k)
         {
-          Ex(i, j, k) = Ex(i, j, k) + C * E_dt * ((Bz(i, j, k) - Bz(i, j - 1, k)) / dy - (By(i, j, k) - By(i, j, k - 1)) / dz);
-          Ey(i, j, k) = Ey(i, j, k) + C * E_dt * ((Bx(i, j, k) - Bx(i, j, k - 1)) / dz - (Bz(i, j, k) - Bz(i - 1, j, k)) / dx);
+          Ex(i, j, k) = Ex(i, j, k) + C * E_dt * ((Bz(i, j, k) - Bz(i, j - 1, k)) / dy /*- (By(i, j, k) - By(i, j, k - 1)) / dz*/);
+          Ey(i, j, k) = Ey(i, j, k) + C * E_dt * (/*(Bx(i, j, k) - Bx(i, j, k - 1)) / dz*/ - (Bz(i, j, k) - Bz(i - 1, j, k)) / dx);
           Ez(i, j, k) = Ez(i, j, k) + C * E_dt * ((By(i, j, k) - By(i - 1, j, k)) / dx - (Bx(i, j, k) - Bx(i, j - 1, k)) / dy);
         }
+    // Обновляю границу - верх 2-х мерной системы
+    for (uint64_t x = 0; x < Ex.get_Nx(); ++x)
+    {
+      *(Ex.data() + x + 1) = Ex(x, Ex.get_Ny() - 1); // снизу
+      Ex(x, Ex.get_Ny()) = Ex(x, 0); // сверху
+
+      *(Ey.data() + x + 1) = Ey(x, Ey.get_Ny() - 1); // снизу
+      Ey(x, Ey.get_Ny()) = Ey(x, 0); // сверху
+
+      *(Ez.data() + x + 1) = Ez(x, Ez.get_Ny() - 1); // снизу
+      Ez(x, Ez.get_Ny()) = Ez(x, 0); // сверху
+    }
+    for (uint64_t y = 0; y < Ex.get_Ny(); ++y)
+    {
+      Ex(-1, y) = Ex(Ex.get_Nx() - 1, y); // слева
+      Ex(Ex.get_Nx(), y) = Ex(0, y); // справа
+
+      Ey(-1, y) = Ey(Ey.get_Nx() - 1, y); // слева
+      Ey(Ey.get_Nx(), y) = Ey(0, y); // справа
+
+      Ez(-1, y) = Ez(Ez.get_Nx() - 1, y); // слева
+      Ez(Ez.get_Nx(), y) = Ez(0, y); // справа
+    }
+    Ex(-1, -1) = Ex(Ex.get_Nx() - 1, Ex.get_Ny() - 1); // левый нижний узел
+    Ex(-1, Ex.get_Ny()) = Ex(Ex.get_Nx() - 1, 0); // левый верхний узел
+    Ex(Ex.get_Nx(), Ex.get_Ny()) = Ex(0, 0); // правый верхний узел
+    *(Ex.data() + Ex.get_Nx() + 1) = Ex(0, Ex.get_Ny() - 1); // правый нижний узел
+
+    Ey(-1, -1) = Ey(Ey.get_Nx() - 1, Ey.get_Ny() - 1); // левый нижний узел
+    Ey(-1, Ey.get_Ny()) = Ey(Ey.get_Nx() - 1, 0); // левый верхний узел
+    Ey(Ey.get_Nx(), Ey.get_Ny()) = Ey(0, 0); // правый верхний узел
+    *(Ey.data() + Ey.get_Nx() + 1) = Ey(0, Ey.get_Ny() - 1); // правый нижний узел
+
+    Ez(-1, -1) = Ez(Ez.get_Nx() - 1, Ez.get_Ny() - 1); // левый нижний узел
+    Ez(-1, Ez.get_Ny()) = Ez(Ez.get_Nx() - 1, 0); // левый верхний узел
+    Ez(Ez.get_Nx(), Ez.get_Ny()) = Ez(0, 0); // правый верхний узел
+    *(Ez.data() + Ez.get_Nx() + 1) = Ez(0, Ez.get_Ny() - 1); // правый нижний узел
+
+
     for (i = 0ull; i < Nx; ++i)
       for (j = 0ull; j < Ny; ++j)
         for (k = 0ull; k < Nz; ++k)
         {
-          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
-          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx - (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          Bx(i, j, k) = Bx(i, j, k) + C * B_dt * (/*(Ey(i, j, k + 1) - Ey(i, j, k)) / dz*/ - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+          By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx /*- (Ex(i, j, k + 1) - Ex(i, j, k)) / dz*/);
           Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
         }
+    // Обновляю границу - верх 2-х мерной системы
+    for (uint64_t x = 0; x < Bx.get_Nx(); ++x)
+    {
+      *(Bx.data() + x + 1) = Bx(x, Bx.get_Ny() - 1); // снизу
+      Bx(x, Bx.get_Ny()) = Bx(x, 0); // сверху
+
+      *(By.data() + x + 1) = By(x, By.get_Ny() - 1); // снизу
+      By(x, By.get_Ny()) = By(x, 0); // сверху
+
+      *(Bz.data() + x + 1) = Bz(x, Bz.get_Ny() - 1); // снизу
+      Bz(x, Bz.get_Ny()) = Bz(x, 0); // сверху
+    }
+    for (uint64_t y = 0; y < Bx.get_Ny(); ++y)
+    {
+      Bx(-1, y) = Bx(Bx.get_Nx() - 1, y); // слева
+      Bx(Bx.get_Nx(), y) = Bx(0, y); // справа
+
+      By(-1, y) = By(By.get_Nx() - 1, y); // слева
+      By(By.get_Nx(), y) = By(0, y); // справа
+
+      Bz(-1, y) = Bz(Bz.get_Nx() - 1, y); // слева
+      Bz(Bz.get_Nx(), y) = Bz(0, y); // справа
+    }
+    Bx(-1, -1) = Bx(Bx.get_Nx() - 1, Bx.get_Ny() - 1); // левый нижний узел
+    Bx(-1, Bx.get_Ny()) = Bx(Bx.get_Nx() - 1, 0); // левый верхний узел
+    Bx(Bx.get_Nx(), Bx.get_Ny()) = Bx(0, 0); // правый верхний узел
+    *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // правый нижний узел
+
+    By(-1, -1) = By(By.get_Nx() - 1, By.get_Ny() - 1); // левый нижний узел
+    By(-1, By.get_Ny()) = By(By.get_Nx() - 1, 0); // левый верхний узел
+    By(By.get_Nx(), By.get_Ny()) = By(0, 0); // правый верхний узел
+    *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // правый нижний узел
+
+    Bz(-1, -1) = Bz(Bz.get_Nx() - 1, Bz.get_Ny() - 1); // левый нижний узел
+    Bz(-1, Bz.get_Ny()) = Bz(Bz.get_Nx() - 1, 0); // левый верхний узел
+    Bz(Bz.get_Nx(), Bz.get_Ny()) = Bz(0, 0); // правый верхний узел
+    *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // правый нижний узел
   }
 #endif // MPI
 }

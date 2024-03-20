@@ -95,14 +95,14 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
   Field::ComputingField& B_field = get_B();
 
   auto loop_function = [&](std::tuple<Axis, uint64_t, uint64_t> axis_1, std::tuple<Axis, uint64_t, uint64_t> axis_2, std::tuple<Axis, uint64_t, uint64_t> axis_3) {
-    uint64_t* i = nullptr;
-    uint64_t* j = nullptr;
-    uint64_t* k = nullptr;
+    int64_t* i = nullptr;
+    int64_t* j = nullptr;
+    int64_t* k = nullptr;
 
 
-    uint64_t axis_1_counter = std::get<1>(axis_1);
-    uint64_t axis_2_counter = std::get<1>(axis_2);
-    uint64_t axis_3_counter = std::get<1>(axis_3);
+    int64_t axis_1_counter = std::get<1>(axis_1);
+    int64_t axis_2_counter = std::get<1>(axis_2);
+    int64_t axis_3_counter = std::get<1>(axis_3);
 
 
     switch (std::get<0>(axis_1))
@@ -127,7 +127,7 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     default: break;
     }
 
-
+    std::cout << std::get<2>(axis_1) << '\n';
     for (axis_1_counter = 0ull; axis_1_counter < std::get<2>(axis_1); ++(axis_1_counter), coordinate += delta_coordinate)
       for (axis_2_counter = 0ull; axis_2_counter < std::get<2>(axis_2); ++(axis_2_counter))
         for (axis_3_counter = 0ull;  axis_3_counter < std::get<2>(axis_3); ++(axis_3_counter))
@@ -140,7 +140,66 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
           B_field(*i, *j, *k) =
             sin(2.0 * PI * (coordinate + delta_coordinate * coeff - ai_bi.first - sign * C * t) /
               (ai_bi.second - ai_bi.first));
+          //std::cout << "i = " << *i << " j = " << *j << " k = " << *k << '\n';
         }
+    // Обновляю границу - низ 2-х мерной системы
+    //std::memcpy(E_field.data() + 1, E_field.data() + E_field.get_Nx() * (E_field.get_Ny() - 1), E_field.get_Nx() * sizeof(double));
+    //std::memcpy(B_field.data() + 1, B_field.data() + B_field.get_Nx() * (B_field.get_Ny() - 1), B_field.get_Nx() * sizeof(double));
+
+    //int sc = 0;
+    //for (int i = 0; i < E_field.get_Nx() - 1; ++i)
+    //{
+    //  for (int j = 0; j < E_field.get_Ny() - 1; ++j)
+    //  {
+    //    E_field(i, j) = sc++;
+    //  }
+    //}
+
+    //int c = 0;
+    //for (int x = 0; x < E_field.field.size(); x++)
+    //{
+    //  if (c == 10) std::cout << '\n';
+    //  std::cout << E_field.field[x] << '\t';
+    //}
+
+    //for (int j = 0; j < E_field.get_Ny() + 1; ++j)
+    //{
+    //  int c = 0;
+    //  for (int i = 0; i < E_field.get_Nx() + 1; ++i)
+    //  {
+    //    std::cout << E_field(i, j) << '\t';
+    //    if (c == 10) std::cout << '\n';
+    //    c++;
+    //  }
+    //}
+    std::cout << "\n\n";
+
+    // Обновляю границу - верх 2-х мерной системы
+    for (uint64_t x = 0; x < E_field.get_Nx(); ++x)
+    {
+      *(E_field.data() + x + 1) = E_field(x, E_field.get_Ny() - 1); // снизу
+      E_field(x, E_field.get_Ny()) = E_field(x, 0); // сверху
+
+      *(B_field.data() + x + 1) = B_field(x, B_field.get_Ny() - 1); // снизу
+      B_field(x, B_field.get_Ny()) = B_field(x, 0); // сверху
+    }
+    for (uint64_t y = 0; y < E_field.get_Ny(); ++y)
+    {
+      E_field(-1, y) = E_field(E_field.get_Nx() - 1, y); // слева
+      E_field(E_field.get_Nx(), y) = E_field(0, y); // справа
+
+      B_field(-1, y) = B_field(B_field.get_Nx() - 1, y); // слева
+      B_field(B_field.get_Nx(), y) = B_field(0, y); // справа
+    }
+    E_field(-1, -1) = E_field(E_field.get_Nx() - 1, E_field.get_Ny() - 1); // левый нижний узел
+    E_field(-1, E_field.get_Ny()) = E_field(E_field.get_Nx() - 1, 0); // левый верхний узел
+    E_field(E_field.get_Nx(), E_field.get_Ny()) = E_field(0, 0); // правый верхний узел
+    *(E_field.data() + E_field.get_Nx() + 1) = E_field(0, E_field.get_Ny() - 1); // правый нижний узел
+
+    B_field(-1, -1) = B_field(B_field.get_Nx() - 1, B_field.get_Ny() - 1); // левый нижний узел
+    B_field(-1, B_field.get_Ny()) = B_field(B_field.get_Nx() - 1, 0); // левый верхний узел
+    B_field(B_field.get_Nx(), B_field.get_Ny()) = B_field(0, 0); // правый верхний узел
+    *(B_field.data() + B_field.get_Nx() + 1) = B_field(0, B_field.get_Ny() - 1); // правый нижний узел
   };
 
   auto set_computational_data = [this, &helper_set_data, &loop_function, &E, &B]() {
@@ -402,6 +461,33 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
             sin(2.0 * PI * (coordinate + delta_coordinate * coeff - ai_bi.first) /
               (ai_bi.second - ai_bi.first));
         }
+
+    // Обновляю границу - верх 2-х мерной системы
+    for (uint64_t x = 0; x < E_field.get_Nx(); ++x)
+    {
+      *(E_field.data() + x + 1) = E_field(x, E_field.get_Ny() - 1); // снизу
+      E_field(x, E_field.get_Ny()) = E_field(x, 0); // сверху
+
+      *(B_field.data() + x + 1) = B_field(x, B_field.get_Ny() - 1); // снизу
+      B_field(x, B_field.get_Ny()) = B_field(x, 0); // сверху
+    }
+    for (uint64_t y = 0; y < E_field.get_Ny(); ++y)
+    {
+      E_field(-1, y) = E_field(E_field.get_Nx() - 1, y); // слева
+      E_field(E_field.get_Nx(), y) = E_field(0, y); // справа
+
+      B_field(-1, y) = B_field(B_field.get_Nx() - 1, y); // слева
+      B_field(B_field.get_Nx(), y) = B_field(0, y); // справа
+    }
+    E_field(-1, -1) = E_field(E_field.get_Nx() - 1, E_field.get_Ny() - 1); // левый нижний узел
+    E_field(-1, E_field.get_Ny()) = E_field(E_field.get_Nx() - 1, 0); // левый верхний узел
+    E_field(E_field.get_Nx(), E_field.get_Ny()) = E_field(0, 0); // правый верхний узел
+    *(E_field.data() + E_field.get_Nx() + 1) = E_field(0, E_field.get_Ny() - 1); // правый нижний узел
+
+    B_field(-1, -1) = B_field(B_field.get_Nx() - 1, B_field.get_Ny() - 1); // левый нижний узел
+    B_field(-1, B_field.get_Ny()) = B_field(B_field.get_Nx() - 1, 0); // левый верхний узел
+    B_field(B_field.get_Nx(), B_field.get_Ny()) = B_field(0, 0); // правый верхний узел
+    *(B_field.data() + B_field.get_Nx() + 1) = B_field(0, B_field.get_Ny() - 1); // правый нижний узел
   };
 
   auto set_computational_data = [this, &helper_set_data, &loop_function, &E, &B]() {

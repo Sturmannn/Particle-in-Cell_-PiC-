@@ -36,8 +36,8 @@ public:
   void resize_field(const uint64_t _Nx, const uint64_t _Ny, const uint64_t _Nz = 1ull);
 
   // Операторы доступа к элементам поля
-  double &operator()(uint64_t i, uint64_t j, uint64_t k = 0ull);
-  const double &operator()(uint64_t i, uint64_t j, uint64_t k = 0ull) const;
+  double &operator()(int64_t i, int64_t j, int64_t k = 0ull);
+  const double &operator()(int64_t i, int64_t j, int64_t k = 0ull) const;
 
   // Операторы присваивания
   ComputingField &operator=(const ComputingField &_field);

@@ -51,7 +51,7 @@ private:
 };
 
 TEST(Test_version_comparison, shifted_OY) {
-  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = {16ull, 16ull, 16ull};
+  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = {10ull, 10ull, 1ull};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   double dt = 2e-15;
@@ -68,8 +68,8 @@ TEST(Test_version_comparison, shifted_OY) {
   dt = 0.25 * dx / C;
   uint64_t t = 10;
 
-  Component E = Component::Ex;
-  Component B = Component::By;
+  Component E = Component::Ez;
+  Component B = Component::Bx;
   Shift shift = Shift::shifted;
 
   //FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
@@ -207,7 +207,7 @@ TEST(Test_version_comparison, shifted_OY) {
 //=======================================================================================================================
 
 TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
-  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = { 16ull, 16ull, 16ull };
+  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = { 16ull, 16ull, 1ull };
   std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
   std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
   double start = omp_get_wtime();
@@ -221,7 +221,7 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 
 
   //t = (bx_by.first - ax_ay.first) / C * 0.25;
-  uint64_t t = 5; // Задание количества итераций
+  uint64_t t = 10; // Задание количества итераций
 
   FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
 
@@ -236,7 +236,7 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 
   //=====Second field=====
 
-  Nx_Ny_Nz = std::make_tuple(32ull, 32ull, 32ull);
+  Nx_Ny_Nz = std::make_tuple(32ull, 32ull, 1ull);
   dt = dt / 2;
   t *= 2;
 

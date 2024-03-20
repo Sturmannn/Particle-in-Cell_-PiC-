@@ -8,12 +8,13 @@ Field::ComputingField::ComputingField(const uint64_t _Nx, const uint64_t _Ny, co
   if (_Nz == 0)
   {
     Nz = 1;
-    field.resize(Nx * Ny, 0.0);
+    //field.resize(Nx * Ny, 0.0);
+    field.resize((Nx + 2) * (Ny + 2), 0.0);
   }
   else
   {
     Nz = _Nz;
-    field.resize(Nx * Ny * Nz, 0.0);
+    field.resize((Nx + 2) * (Ny + 2) * Nz, 0.0); // field.resize(Nx * Ny * Nz, 0.0);
   }
 }
 
@@ -37,29 +38,34 @@ void Field::ComputingField::resize_field(const uint64_t _Nx, const uint64_t _Ny,
   this->Field::ComputingField::ComputingField(_Nx, _Ny, _Nz);
 }
 
-double& Field::ComputingField::operator()(uint64_t i, uint64_t j, uint64_t k) {
+double& Field::ComputingField::operator()(int64_t i, int64_t j, int64_t k) {
 
   //if (i == SIZE_MAX) i = 0ull;
   //if (j == SIZE_MAX) j = 0ull;
 
-  if (i == SIZE_MAX) i = Nx - 1ull;
-  if (j == SIZE_MAX) j = Ny - 1ull;
-  if (k == SIZE_MAX) k = Nz - 1ull;
+  //if (i == SIZE_MAX) i = Nx - 1ull;
+  //if (j == SIZE_MAX) j = Ny - 1ull;
+  //if (k == SIZE_MAX) k = Nz - 1ull;
+  //int tmp = Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx + 2 - i - 1);
+  return field[Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx - i + 1)];
+  //return field[Nx * Ny * k + (Nx + 2) * (j + 1) - (Nx + 2 - i - 1)]; // здесь К + 1 надо наверное
 
   //return field[Nx * (j % Ny) + (i % Nx)];
-  return field[Nx * Ny * (k % Nz) + Nx * (j % Ny) + (i % Nx)];
+  //return field[Nx * Ny * (k % Nz) + Nx * (j % Ny) + (i % Nx)];
 }
 
-const double& Field::ComputingField::operator()(uint64_t i, uint64_t j, uint64_t k) const
+const double& Field::ComputingField::operator()(int64_t i, int64_t j, int64_t k) const
 {
   //return const_cast<const double&>((*this)(i, j, k));
   //return (*this)(i, j, k);
+  return field[Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx - i + 1)];
 
-  if (i == SIZE_MAX) i = Nx - 1ull;
-  if (j == SIZE_MAX) j = Ny - 1ull;
-  if (k == SIZE_MAX) k = Nz - 1ull;
+  //if (i == SIZE_MAX) i = Nx - 1ull;
+  //if (j == SIZE_MAX) j = Ny - 1ull;
+  //if (k == SIZE_MAX) k = Nz - 1ull;
 
-  return field[Nx * Ny * (k % Nz) + Nx * (j % Ny) + (i % Nx)];
+  //return field[Nx * Ny * (k % Nz) + Nx * (j % Ny) + (i % Nx)];
+
 }
 
 Field::ComputingField& Field::ComputingField::operator=(
