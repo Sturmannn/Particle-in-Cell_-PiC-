@@ -21,7 +21,7 @@ class FDTD {
 public:
   // Конструкторы и деструктор
   FDTD() = delete;
-  FDTD(const std::tuple<uint64_t, uint64_t, uint64_t> &Nx_Ny_Nz,
+  FDTD(const std::tuple<int64_t, int64_t, int64_t> &Nx_Ny_Nz,
        const std::tuple<double, double, double> &ax_ay_az,
        const std::tuple<double, double, double> &bx_by_bz, double _dt);
   FDTD(const FDTD &_fields);
@@ -33,9 +33,9 @@ public:
   FDTD &operator=(FDTD &&_fields) noexcept;
 
   // Методы для получения размеров сетки и коэффициентов
-  uint64_t get_Nx(void) const noexcept { return Nx; }
-  uint64_t get_Ny(void) const noexcept { return Ny; }
-  uint64_t get_Nz(void) const noexcept { return Nz; }
+  int64_t get_Nx(void) const noexcept { return Nx; }
+  int64_t get_Ny(void) const noexcept { return Ny; }
+  int64_t get_Nz(void) const noexcept { return Nz; }
 
   std::pair<double, double> get_ax_bx(void) const noexcept {
     return std::make_pair(ax, bx);
@@ -62,22 +62,22 @@ public:
   double get_dt(void) const noexcept { return dt; }
 
   void set_dt(double _dt) { dt = _dt; }
-  void set_Nx_Ny_Nz(uint64_t _Nx, uint64_t _Ny, uint64_t _Nz);
+  void set_Nx_Ny_Nz(int64_t _Nx, int64_t _Ny, int64_t _Nz);
 
   // Методы для обновления полей
   void field_update(const double t);
-  void field_update(const uint64_t t);
+  void field_update(const int64_t t);
 
   void shifted_field_update(const double t);
-  void shifted_field_update(const uint64_t t);
+  void shifted_field_update(const int64_t t);
 
   void write_fields_to_file(const char* path, Component E, Component B, const double delta,
-    const uint64_t row_number = 0ull); // The col is fixed
+    const int64_t row_number = 0ull); // The col is fixed
   
   static Axis get_axis(const Component E, const Component B);
 private:
   // Приватные члены данных
-  uint64_t Nx, Ny, Nz;                          // Размеры сетки
+  int64_t Nx, Ny, Nz;                          // Размеры сетки
   Field::ComputingField Ex, Ey, Ez, Bx, By, Bz; // Компоненты полей
   double ax, bx, ay, by, az, bz, dx, dy, dz, dt; // Коэффициенты и шаги
 };

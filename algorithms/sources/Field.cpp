@@ -1,6 +1,6 @@
 #include "Field.hpp"
 
-Field::ComputingField::ComputingField(const uint64_t _Nx, const uint64_t _Ny, const uint64_t _Nz)
+Field::ComputingField::ComputingField(const int64_t _Nx, const int64_t _Ny, const int64_t _Nz)
 {
   Nx = _Nx;
   Ny = _Ny;
@@ -33,7 +33,7 @@ Field::ComputingField::ComputingField(ComputingField&& _field) noexcept : field(
   Nz = _field.get_Nz();
 }
 
-void Field::ComputingField::resize_field(const uint64_t _Nx, const uint64_t _Ny, const uint64_t _Nz)
+void Field::ComputingField::resize_field(const int64_t _Nx, const int64_t _Ny, const int64_t _Nz)
 {
   this->Field::ComputingField::ComputingField(_Nx, _Ny, _Nz);
 }
@@ -92,7 +92,7 @@ void Field::ComputingField::clear_file(const char* path)
   outfile.close();
 }
 
-void Field::ComputingField::write_field_to_file_OX(const char* path, const uint64_t j)
+void Field::ComputingField::write_field_to_file_OX(const char* path, const int64_t j)
 {
   std::ofstream outfile;
   outfile.open(path, std::ios::app);
@@ -106,8 +106,8 @@ void Field::ComputingField::write_field_to_file_OX(const char* path, const uint6
     std::cout << "\nError: Going beyond the column indexing in the matrix (Writing field to the file)\n";
     exit(-1);
   }
-  uint64_t i = 0ull;
-  uint64_t k = 0ull;
+  int64_t i = 0ull;
+  int64_t k = 0ull;
 
   for (; i < Nx - 1ull; ++i)
     outfile << this->operator()(i, j, k) << ';';
@@ -115,7 +115,7 @@ void Field::ComputingField::write_field_to_file_OX(const char* path, const uint6
   outfile.close();
 }
 
-void Field::ComputingField::write_field_to_file_OY(const char* path, const uint64_t i)
+void Field::ComputingField::write_field_to_file_OY(const char* path, const int64_t i)
 {
   std::ofstream outfile;
   outfile.open(path, std::ios::app);
@@ -129,15 +129,15 @@ void Field::ComputingField::write_field_to_file_OY(const char* path, const uint6
     std::cout << "\nError: Going beyond the column indexing in the matrix (Writing field to the file)\n";
     exit(-1);
   }
-  uint64_t j = 0ull;
-  uint64_t k = 0ull;
+  int64_t j = 0ull;
+  int64_t k = 0ull;
   for (; j < Ny - 1ull; ++j)
     outfile << this->operator()(i, j, k) << ';';
   outfile << this->operator()(i, j, k) << '\n';
   outfile.close();
 }
 
-void Field::ComputingField::write_field_to_file_OZ(const char* path, uint64_t k)
+void Field::ComputingField::write_field_to_file_OZ(const char* path, int64_t k)
 {
   std::ofstream outfile;
   outfile.open(path, std::ios::app);
@@ -151,8 +151,8 @@ void Field::ComputingField::write_field_to_file_OZ(const char* path, uint64_t k)
     std::cout << "\nError: Going beyond the column indexing in the matrix (Writing field to the file)\n";
     exit(-1);
   }
-  uint64_t i = 0ull;
-  uint64_t j = 0ull;
+  int64_t i = 0ull;
+  int64_t j = 0ull;
   k = 0;
   for (; k < Nz - 1ull; ++k)
     outfile << this->operator()(i, j, k) << ';';

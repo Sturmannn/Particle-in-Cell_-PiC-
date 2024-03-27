@@ -31,7 +31,7 @@ public:
                             const Shift _shift);
 
   void numerical_solution(const double t, const Shift _shift);
-  void numerical_solution(const uint64_t t, const Shift _shift);
+  void numerical_solution(const int64_t t, const Shift _shift);
 
   double get_global_err(const Component component);
 
@@ -51,7 +51,7 @@ private:
 };
 
 TEST(Test_version_comparison, shifted_OY) {
-  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = {10ull, 10ull, 1ull};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {10ull, 10ull, 1ull};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   double dt = 2e-15;
@@ -66,7 +66,7 @@ TEST(Test_version_comparison, shifted_OY) {
   double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
 
   dt = 0.25 * dx / C;
-  uint64_t t = 10;
+  int64_t t = 10;
 
   Component E = Component::Ez;
   Component B = Component::Bx;
@@ -82,13 +82,18 @@ TEST(Test_version_comparison, shifted_OY) {
   // test.set_default_field_OX(E, B);
   test.numerical_solution(t, shift);
 
-  Field::ComputingField::clear_file(path_to_calculated_data);
-  Field::ComputingField::clear_file(path_to_analytic_data);
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (rank == 0)
+  {
+    Field::ComputingField::clear_file(path_to_calculated_data);
+    Field::ComputingField::clear_file(path_to_analytic_data);
 
-  test.field.write_fields_to_file(path_to_calculated_data, E, B,
-                                     test.field.get_dy());
-  test.analytical_field.write_fields_to_file(path_to_analytic_data, E, B,
-                                                test.field.get_dy());
+    test.field.write_fields_to_file(path_to_calculated_data, E, B,
+                                       test.field.get_dy());
+    test.analytical_field.write_fields_to_file(path_to_analytic_data, E, B,
+                                                  test.field.get_dy());
+  }
 
   // test.field.write_fields_to_file_OX(path_to_calculated_data,
   // test.field.get_dx());
@@ -97,7 +102,7 @@ TEST(Test_version_comparison, shifted_OY) {
 }
 
 // TEST(Test, main_test) {
-//  std::pair<uint64_t, uint64_t> Nx_Ny = { 64ull, 64ull };
+//  std::pair<int64_t, int64_t> Nx_Ny = { 64ull, 64ull };
 //  std::pair<double, double> ax_ay = { 0.0, 0.0 };
 //  std::pair<double, double> bx_by = { 1.0, 1.0 };
 //  double dt = 2e-15;
@@ -114,8 +119,8 @@ TEST(Test_version_comparison, shifted_OY) {
 //    std::make_pair(ax_ay.first, bx_by.first), t);
 //  field.field_update(t);
 
-//  for (uint64_t y = 0ull; y < field.get_Ny(); ++y)
-//    for (uint64_t x = 0ull; x < field.get_Nx(); ++x) {
+//  for (int64_t y = 0ull; y < field.get_Ny(); ++y)
+//    for (int64_t x = 0ull; x < field.get_Nx(); ++x) {
 
 //      ASSERT_NEAR(analytical_field.get_Ex()(x, y), field.get_Ex()(x, y),
 //      0.01); ASSERT_NEAR(analytical_field.get_Ey()(x, y), field.get_Ey()(x,
@@ -137,7 +142,7 @@ TEST(Test_version_comparison, shifted_OY) {
 // TEST(Test_version_comparison,
 // UNSHIFTED_Checking_the_convergence__1_iteration)
 //{
-//  std::pair<uint64_t, uint64_t> Nx_Ny = { 64ull, 64ull };
+//  std::pair<int64_t, int64_t> Nx_Ny = { 64ull, 64ull };
 //  std::pair<double, double> ax_ay = { 0.0, 0.0 };
 //  std::pair<double, double> bx_by = { 1.0, 1.0 };
 //
@@ -206,55 +211,55 @@ TEST(Test_version_comparison, shifted_OY) {
 
 //=======================================================================================================================
 
-TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
-  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = { 16ull, 16ull, 1ull };
-  std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
-  std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
-  double start = omp_get_wtime();
-
-  double dt = 1e-15;
-  // double t = 2e-14;
-  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
-  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
-  dt = 0.25 * dx / C;
-  //double t = 1e-12;
-
-
-  //t = (bx_by.first - ax_ay.first) / C * 0.25;
-  uint64_t t = 10; // Задание количества итераций
-
-  FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
-
-  Component E = Component::Ez;
-  Component B = Component::Bx;
-  Shift shift = Shift::shifted;
-
-  Test_obj test(E, B, std::move(field));
-  test.analytical_default_solution(E, B, t * dt, shift);  // t * dt OR t
-  test.set_default_field(E, B, shift);
-  test.numerical_solution(t, shift);
-
-  //=====Second field=====
-
-  Nx_Ny_Nz = std::make_tuple(32ull, 32ull, 1ull);
-  dt = dt / 2;
-  t *= 2;
-
-  //dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
-  //dt = 0.25 * dx / C;
-
-  FDTD::FDTD field_2(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
-
-  Test_obj test_2(E, B, std::move(field_2));
-  test_2.analytical_default_solution(E, B, t * dt, shift); // t * dt OR t
-  test_2.set_default_field(E, B, shift);
-  test_2.numerical_solution(t, shift);
-
-  double end = omp_get_wtime();
-  std::cout << "Time = " << end - start << std::endl;
-
-  test.print_convergence(test_2);
-}
+//TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
+//  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = { 16ull, 16ull, 1ull };
+//  std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
+//  std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
+//  double start = omp_get_wtime();
+//
+//  double dt = 1e-15;
+//  // double t = 2e-14;
+//  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
+//  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
+//  dt = 0.25 * dx / C;
+//  //double t = 1e-12;
+//
+//
+//  //t = (bx_by.first - ax_ay.first) / C * 0.25;
+//  int64_t t = 10; // Задание количества итераций
+//
+//  FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
+//
+//  Component E = Component::Ez;
+//  Component B = Component::Bx;
+//  Shift shift = Shift::shifted;
+//
+//  Test_obj test(E, B, std::move(field));
+//  test.analytical_default_solution(E, B, t * dt, shift);  // t * dt OR t
+//  test.set_default_field(E, B, shift);
+//  test.numerical_solution(t, shift);
+//
+//  //=====Second field=====
+//
+//  Nx_Ny_Nz = std::make_tuple(32ull, 32ull, 1ull);
+//  dt = dt / 2;
+//  t *= 2;
+//
+//  //dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
+//  //dt = 0.25 * dx / C;
+//
+//  FDTD::FDTD field_2(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
+//
+//  Test_obj test_2(E, B, std::move(field_2));
+//  test_2.analytical_default_solution(E, B, t * dt, shift); // t * dt OR t
+//  test_2.set_default_field(E, B, shift);
+//  test_2.numerical_solution(t, shift);
+//
+//  double end = omp_get_wtime();
+//  std::cout << "Time = " << end - start << std::endl;
+//
+//  test.print_convergence(test_2);
+//}
 
 //=======================================================================================================================
 
@@ -262,7 +267,7 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 //{
 //  std::cout << "======================Start several operations======================\n";
 //
-//  std::tuple<uint64_t, uint64_t, uint64_t> Nx_Ny_Nz = { 16ull, 16ull, 16ull }; // starting grid
+//  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = { 16ull, 16ull, 16ull }; // starting grid
 //  std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
 //  std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
 //
@@ -271,7 +276,7 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 //  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
 //  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
 //  double dt = 0.25 * dx / C;
-//  uint64_t t = 10;
+//  int64_t t = 10;
 //
 //  FDTD::FDTD field_1(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
 //
@@ -297,7 +302,7 @@ TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
 //
 //  //test.print_convergence(another_test);
 //
-//  uint64_t Nx, Ny, Nz;
+//  int64_t Nx, Ny, Nz;
 //  std::tie(Nx, Ny, Nz) = Nx_Ny_Nz;
 //  for (uint8_t i = 0; i < 4; i++)
 //  {

@@ -3,4 +3,4 @@ file(GLOB srcs "sources/*.cpp") #Добавляем в переменную srcs
 
 add_executable(${test} ${srcs} ${hdrs})
 
-target_link_libraries(${test} ${testLib} ${alg}) #Подключаем к проекту с именем ${test} библиотеку с именем ${testLib}
+target_link_libraries(${test} ${testLib} ${alg} ${MPI_LIBS}) #Подключаем к проекту с именем ${test} библиотеку с именем ${testLib}
