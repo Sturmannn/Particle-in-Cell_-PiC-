@@ -273,8 +273,12 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
 
   std::cout << "MPI size = " << mpi_comm_size << '\n';
 
-  int64_t Nx_local = get_Nx() + 2;
-  int64_t Ny_local = (get_Ny() + 2) / mpi_comm_size; //   int64_t Ny_local = (get_Ny() + 2) / mpi_comm_size + 1;
+  //int64_t Nx_local = get_Nx() + 2;
+  //int64_t Ny_local = (get_Ny() + 2) / mpi_comm_size; //   int64_t Ny_local = (get_Ny() + 2) / mpi_comm_size + 1;
+  //int64_t Nz_local = 1;
+
+  int64_t Nx_local = get_Nx();
+  int64_t Ny_local = get_Ny() / mpi_comm_size; //   int64_t Ny_local = (get_Ny() + 2) / mpi_comm_size + 1;
   int64_t Nz_local = 1;
 
   //Nx_local_size = get_Nx();
@@ -286,6 +290,7 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
   Field::ComputingField Bx_local(Nx_local, Ny_local);
   Field::ComputingField By_local(Nx_local, Ny_local);
   Field::ComputingField Bz_local(Nx_local, Ny_local);
+
 
   std::cout << "Ex_loc = " << Ex_local.size() << '\n';
 
@@ -300,9 +305,12 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
 
   for (int64_t time = 0ull; time < t; time++)
   {
-    for (i = 0; i < Nx_local; ++i)
-      for (j = 0; j < Ny_local; ++j)
-        for (k = 0; k < Nz_local; ++k)
+    //for (i = 0; i < Nx_local; ++i)
+    //  for (j = 0; j < Ny_local; ++j)
+    //    for (k = 0; k < Nz_local; ++k)
+    for (i = 0; i < get_Nx(); ++i)
+      for (j = 0; j < get_Ny(); ++j)
+        for (k = 0; k < get_Nz(); ++k)
         {
           Bx_local(i, j, k) = Bx_local(i, j, k) + C * B_dt * (/*(Ey_local(i, j, k + 1) - Ey_local(i, j, k)) / dz*/ -(Ez_local(i, j + 1, k) - Ez_local(i, j, k)) / dy);
           By_local(i, j, k) = By_local(i, j, k) + C * B_dt * ((Ez_local(i + 1, j, k) - Ez_local(i, j, k)) / dx /*- (Ex_local(i, j, k + 1) - Ex_local(i, j, k)) / dz*/);
@@ -310,34 +318,62 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
           //std::cout << "i = " << i << " j = " << j << " k = " << k << '\n';
         }
     // Обновляю границу - верх 2-х мерной системы
-    if (rank == 0)
+    if (rank == 0 && mpi_comm_size != 1)
     {
-      for (int64_t x = 0; x < Bx_local.get_Nx(); ++x) {
-        *(Bx_local.data() + x + 1) = Bx_local(x, Bx_local.get_Ny() - 1); // снизу
-        *(By_local.data() + x + 1) = By_local(x, By_local.get_Ny() - 1); // снизу
-        *(Bz_local.data() + x + 1) = Bz_local(x, Bz_local.get_Ny() - 1); // снизу
-      }
-      Bx_local(-1, -1) = Bx_local(Bx_local.get_Nx() - 1, Bx_local.get_Ny() - 1); // левый нижний узел
-      By_local(-1, -1) = By_local(By_local.get_Nx() - 1, By_local.get_Ny() - 1); // левый нижний узел
-      Bz_local(-1, -1) = Bz_local(Bz_local.get_Nx() - 1, Bz_local.get_Ny() - 1); // левый нижний узел
-      *(Bx_local.data() + Bx_local.get_Nx() + 1) = Bx_local(0, Bx_local.get_Ny() - 1); // правый нижний узел
-      *(By_local.data() + By_local.get_Nx() + 1) = By_local(0, By_local.get_Ny() - 1); // правый нижний узел
-      *(Bz_local.data() + Bz_local.get_Nx() + 1) = Bz_local(0, Bz_local.get_Ny() - 1); // правый нижний узел
+      // Получаю верхнюю строчку последнего процесса для синхронизации нулевой строчки нулевого процесса
+      // Замечание: здесь get_Nx() = Nx_local - 2
+      MPI_Recv(Bx_local.data() + 1, Bx_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу 
+      MPI_Recv(By_local.data() + 1, By_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу
+      MPI_Recv(Bz_local.data() + 1, Bz_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу
 
+      MPI_Recv(Bx_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+      MPI_Recv(By_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+      MPI_Recv(Bz_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+
+      MPI_Recv(Bx_local.data() + Bx_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+      MPI_Recv(By_local.data() + By_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+      MPI_Recv(Bz_local.data() + Bz_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+
+
+      MPI_Send(&Bx_local(0, 0), Bx_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+      MPI_Send(&By_local(0, 0), By_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+      MPI_Send(&Bz_local(0, 0), Bz_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+
+      MPI_Send(&Bx_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+      MPI_Send(&By_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+      MPI_Send(&Bz_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+
+      MPI_Send(&Bx_local(Bx_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
+      MPI_Send(&By_local(By_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
+      MPI_Send(&Bz_local(Bz_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
     }
-    if (rank == mpi_comm_size - 1)
+    if (rank == mpi_comm_size - 1 && mpi_comm_size != 1)
     {
-      for (int64_t x = 0; x < Bx_local.get_Nx(); ++x) {
-        Bx_local(x, Bx_local.get_Ny()) = Bx_local(x, 0); // сверху
-        By_local(x, By_local.get_Ny() - 1) = By_local(x, 0); // сверху
-        Bz_local(x, Bz_local.get_Ny()) = Bz_local(x, 0); // сверху
-      }
-      Bx_local(-1, Bx_local.get_Ny()) = Bx_local(Bx_local.get_Nx() - 1, 0); // левый верхний узел
-      By_local(-1, By_local.get_Ny()) = By_local(By_local.get_Nx() - 1, 0); // левый верхний узел
-      Bz_local(-1, Bz_local.get_Ny()) = Bz_local(Bz_local.get_Nx() - 1, 0); // левый верхний узел
-      Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()) = Bx_local(0, 0); // правый верхний узел
-      By_local(By_local.get_Nx(), By_local.get_Ny()) = By_local(0, 0); // правый верхний узел
-      Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()) = Bz_local(0, 0); // правый верхний узел
+      // Отправляю верхнюю строчку последнего процесса нулевому процессу для нулевой строчки
+
+      MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, Bx_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+      MPI_Send(By_local.data() + Nx_local * (Ny_local - 2) + 1, By_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+      MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, Bz_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+
+      MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+      MPI_Send(By_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+      MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+
+      MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+      MPI_Send(By_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+      MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+
+      MPI_Recv(&Bx_local(0, Bx_local.get_Ny() - 2), Bx_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+      MPI_Recv(&By_local(0, By_local.get_Ny() - 2), By_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+      MPI_Recv(&Bz_local(0, Bz_local.get_Ny() - 2), Bz_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+
+      MPI_Recv(&Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&By_local(By_local.get_Nx(), By_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+
+      MPI_Recv(&Bx_local(-1, Bx_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&By_local(-1, By_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Bz_local(-1, Bz_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
 
     }
 
@@ -393,44 +429,73 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
     }
 // ==============================================================================================================================================
 
-    for (i = 0ull; i < Nx_local; ++i)
-      for (j = 0ull; j < Ny_local; ++j)
-        for (k = 0ull; k < Nz_local; ++k)
+    //for (i = 0ull; i < Nx_local; ++i)
+    //  for (j = 0ull; j < Ny_local; ++j)
+    //    for (k = 0ull; k < Nz_local; ++k)
+    for (i = 0; i < get_Nx(); ++i)
+      for (j = 0; j < get_Ny(); ++j)
+        for (k = 0; k < get_Nz(); ++k)
         {
           Ex_local(i, j, k) = Ex_local(i, j, k) + C * E_dt * ((Bz_local(i, j, k) - Bz_local(i, j - 1, k)) / dy /*- (By_local(i, j, k) - By_local(i, j, k - 1)) / dz*/);
           Ey_local(i, j, k) = Ey_local(i, j, k) + C * E_dt * (/*(Bx_local(i, j, k) - Bx_local(i, j, k - 1)) / dz*/ -(Bz_local(i, j, k) - Bz_local(i - 1, j, k)) / dx);
           Ez_local(i, j, k) = Ez_local(i, j, k) + C * E_dt * ((By_local(i, j, k) - By_local(i - 1, j, k)) / dx - (Bx_local(i, j, k) - Bx_local(i, j - 1, k)) / dy);
         }
     // Обновляю границу - верх 2-х мерной системы
-    if (rank == 0)
+    if (rank == 0 && mpi_comm_size != 1)
     {
-      for (int64_t x = 0; x < Ex_local.get_Nx(); ++x) {
-        *(Ex_local.data() + x + 1) = Ex_local(x, Ex_local.get_Ny() - 1); // снизу
-        *(Ey_local.data() + x + 1) = Ey_local(x, Ey_local.get_Ny() - 1); // снизу
-        *(Ez_local.data() + x + 1) = Ez_local(x, Ez_local.get_Ny() - 1); // снизу
-      }
-      Ex_local(-1, -1) = Ex_local(Ex_local.get_Nx() - 1, Ex_local.get_Ny() - 1); // левый нижний узел
-      Ey_local(-1, -1) = Ey_local(Ey_local.get_Nx() - 1, Ey_local.get_Ny() - 1); // левый нижний узел
-      Ez_local(-1, -1) = Ez_local(Ez_local.get_Nx() - 1, Ez_local.get_Ny() - 1); // левый нижний узел
-      *(Ex_local.data() + Ex_local.get_Nx() + 1) = Ex_local(0, Ex_local.get_Ny() - 1); // правый нижний узел
-      *(Ey_local.data() + Ey_local.get_Nx() + 1) = Ey_local(0, Ey_local.get_Ny() - 1); // правый нижний узел
-      *(Ez_local.data() + Ez_local.get_Nx() + 1) = Ez_local(0, Ez_local.get_Ny() - 1); // правый нижний узел
+      // Получаю верхнюю строчку последнего процесса для синхронизации нулевой строчки нулевого процесса
+      // Замечание: здесь get_Nx() = Nx_local - 2
+      MPI_Recv(Ex_local.data() + 1, Ex_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу 
+      MPI_Recv(Ey_local.data() + 1, Ey_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу
+      MPI_Recv(Ez_local.data() + 1, Ez_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу
 
+      MPI_Recv(Ex_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+      MPI_Recv(Ey_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+      MPI_Recv(Ez_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+
+      MPI_Recv(Ex_local.data() + Ex_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+      MPI_Recv(Ey_local.data() + Ey_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+      MPI_Recv(Ez_local.data() + Ez_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+
+      MPI_Send(&Ex_local(0, 0), Ex_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+      MPI_Send(&Ey_local(0, 0), Ey_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+      MPI_Send(&Ez_local(0, 0), Ez_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+
+      MPI_Send(&Ex_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+      MPI_Send(&Ey_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+      MPI_Send(&Ez_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+
+      MPI_Send(&Ex_local(Ex_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
+      MPI_Send(&Ey_local(Ey_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
+      MPI_Send(&Ez_local(Ez_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
     }
-    if (rank == mpi_comm_size - 1)
+    if (rank == mpi_comm_size - 1 && mpi_comm_size != 1)
     {
-      for (int64_t x = 0; x < Ex_local.get_Nx(); ++x) {
-        Ex_local(x, Ex_local.get_Ny()) = Ex_local(x, 0); // сверху
-        Ey_local(x, Ey_local.get_Ny() - 1) = Ey_local(x, 0); // сверху
-        Ez_local(x, Ez_local.get_Ny()) = Ez_local(x, 0); // сверху
-      }
-      Ex_local(-1, Ex_local.get_Ny()) = Ex_local(Ex_local.get_Nx() - 1, 0); // левый верхний узел
-      Ey_local(-1, Ey_local.get_Ny()) = Ey_local(Ey_local.get_Nx() - 1, 0); // левый верхний узел
-      Ez_local(-1, Ez_local.get_Ny()) = Ez_local(Ez_local.get_Nx() - 1, 0); // левый верхний узел
-      Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()) = Ex_local(0, 0); // правый верхний узел
-      Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()) = Ey_local(0, 0); // правый верхний узел
-      Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()) = Ez_local(0, 0); // правый верхний узел
+      // Отправляю верхнюю строчку последнего процесса нулевому процессу для нулевой строчки
 
+      MPI_Send(Ex_local.data() + Nx_local * (Ny_local - 2) + 1, Ex_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+      MPI_Send(Ey_local.data() + Nx_local * (Ny_local - 2) + 1, Ey_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+      MPI_Send(Ez_local.data() + Nx_local * (Ny_local - 2) + 1, Ez_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+
+      MPI_Send(Ex_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+      MPI_Send(Ey_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+      MPI_Send(Ez_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+
+      MPI_Send(Ex_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+      MPI_Send(Ey_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+      MPI_Send(Ez_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+
+      MPI_Recv(&Ex_local(0, Ex_local.get_Ny() - 2), Ex_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+      MPI_Recv(&Ey_local(0, Ey_local.get_Ny() - 2), Ey_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+      MPI_Recv(&Ez_local(0, Ez_local.get_Ny() - 2), Ez_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+
+      MPI_Recv(&Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+
+      MPI_Recv(&Ex_local(-1, Ex_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Ey_local(-1, Ey_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Ez_local(-1, Ez_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
     }
 
     for (int64_t y = 0; y < Ex_local.get_Ny(); ++y)
@@ -445,7 +510,7 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
       Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // справа
     }
 
-    // Синхронизация смежных строк (для 2-мерного случая) 
+    // Синхронизация смежных строк (для 2-мерного случая)
     if (mpi_comm_size > 1)
     {
       if (rank != mpi_comm_size - 1 && rank != 0)
@@ -486,9 +551,13 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
 
 // ==============================================================================================================================================
 
-    for (i = 0; i < Nx_local; ++i)
-      for (j = 0; j < Ny_local; ++j)
-        for (k = 0; k < Nz_local; ++k)
+    //for (i = 0; i < Nx_local; ++i)
+    //  for (j = 0; j < Ny_local; ++j)
+    //    for (k = 0; k < Nz_local; ++k)
+
+    for (i = 0; i < get_Nx(); ++i)
+      for (j = 0; j < get_Ny(); ++j)
+        for (k = 0; k < get_Nz(); ++k)
         {
           Bx_local(i, j, k) = Bx_local(i, j, k) + C * B_dt * (/*(Ey_local(i, j, k + 1) - Ey_local(i, j, k)) / dz*/ -(Ez_local(i, j + 1, k) - Ez_local(i, j, k)) / dy);
           By_local(i, j, k) = By_local(i, j, k) + C * B_dt * ((Ez_local(i + 1, j, k) - Ez_local(i, j, k)) / dx /*- (Ex_local(i, j, k + 1) - Ex_local(i, j, k)) / dz*/);
@@ -496,96 +565,134 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
           //std::cout << "i = " << i << " j = " << j << " k = " << k << '\n';
         }
     // Обновляю границу - верх 2-х мерной системы
+    if (rank == 0 && mpi_comm_size != 1)
+    {
+      // Получаю верхнюю строчку последнего процесса для синхронизации нулевой строчки нулевого процесса
+      // Замечание: здесь get_Nx() = Nx_local - 2
+      MPI_Recv(Bx_local.data() + 1, Bx_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу 
+      MPI_Recv(By_local.data() + 1, By_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу
+      MPI_Recv(Bz_local.data() + 1, Bz_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу
+
+      MPI_Recv(Bx_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+      MPI_Recv(By_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+      MPI_Recv(Bz_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
+
+      MPI_Recv(Bx_local.data() + Bx_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+      MPI_Recv(By_local.data() + By_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+      MPI_Recv(Bz_local.data() + Bz_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
+
+      MPI_Send(&Bx_local(0, 0), Bx_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+      MPI_Send(&By_local(0, 0), By_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+      MPI_Send(&Bz_local(0, 0), Bz_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
+
+      MPI_Send(&Bx_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+      MPI_Send(&By_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+      MPI_Send(&Bz_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
+
+      MPI_Send(&Bx_local(Bx_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
+      MPI_Send(&By_local(By_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
+      MPI_Send(&Bz_local(Bz_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
+    }
+    if (rank == mpi_comm_size - 1 && mpi_comm_size != 1)
+    {
+      // Отправляю верхнюю строчку последнего процесса нулевому процессу для нулевой строчки
+
+      MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, Bx_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+      MPI_Send(By_local.data() + Nx_local * (Ny_local - 2) + 1, By_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+      MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, Bz_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
+
+      MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+      MPI_Send(By_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+      MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
+
+      MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+      MPI_Send(By_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+      MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+
+      MPI_Recv(&Bx_local(0, Bx_local.get_Ny() - 2), Bx_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+      MPI_Recv(&By_local(0, By_local.get_Ny() - 2), By_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+      MPI_Recv(&Bz_local(0, Bz_local.get_Ny() - 2), Bz_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
+
+      MPI_Recv(&Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&By_local(By_local.get_Nx(), By_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
+
+      MPI_Recv(&Bx_local(-1, Bx_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&By_local(-1, By_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Bz_local(-1, Bz_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+    }
+
+    //for (int64_t y = 0; y < Bx_local.get_Ny(); ++y)
+    //{
+    //  Bx_local(-1, y) = Bx_local(Bx_local.get_Nx() - 1, y); // слева
+    //  Bx_local(Bx_local.get_Nx(), y) = Bx_local(0, y); // справа
+
+    //  By_local(-1, y) = By_local(By_local.get_Nx() - 1, y); // слева
+    //  By_local(By_local.get_Nx(), y) = By_local(0, y); // справа
+
+    //  Bz_local(-1, y) = Bz_local(Bz_local.get_Nx() - 1, y); // слева
+    //  Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y); // справа
+    //}
+
+    // Синхронизация смежных строк (для 2-мерного случая)
+    if (mpi_comm_size > 1)
+    {
+      if (rank != mpi_comm_size - 1 && rank != 0)
+      {
+        MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
+          Bx_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+        MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
+          By_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+        MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
+          Bz_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+
+        MPI_Sendrecv(Bx_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
+          Bx_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+        MPI_Sendrecv(By_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
+          By_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+        MPI_Sendrecv(Bz_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
+          Bz_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+      }
+      else if (rank == 0)
+      {
+        MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
+          Bx_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+        MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
+          By_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+        MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
+          Bz_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+      }
+      else // if (rank == mpi_comm_size - 1)
+      {
+        MPI_Sendrecv(Bx_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
+          Bx_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+        MPI_Sendrecv(By_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
+          By_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+        MPI_Sendrecv(Bz_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
+          Bz_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+      }
+    }
+
     if (rank == 0)
     {
-      for (int64_t x = 0; x < Bx_local.get_Nx(); ++x) {
-        *(Bx_local.data() + x + 1) = Bx_local(x, Bx_local.get_Ny() - 1); // снизу
-        *(By_local.data() + x + 1) = By_local(x, By_local.get_Ny() - 1); // снизу
-        *(Bz_local.data() + x + 1) = Bz_local(x, Bz_local.get_Ny() - 1); // снизу
-      }
-      Bx_local(-1, -1) = Bx_local(Bx_local.get_Nx() - 1, Bx_local.get_Ny() - 1); // левый нижний узел
-      By_local(-1, -1) = By_local(By_local.get_Nx() - 1, By_local.get_Ny() - 1); // левый нижний узел
-      Bz_local(-1, -1) = Bz_local(Bz_local.get_Nx() - 1, Bz_local.get_Ny() - 1); // левый нижний узел
-      *(Bx_local.data() + Bx_local.get_Nx() + 1) = Bx_local(0, Bx_local.get_Ny() - 1); // правый нижний узел
-      *(By_local.data() + By_local.get_Nx() + 1) = By_local(0, By_local.get_Ny() - 1); // правый нижний узел
-      *(Bz_local.data() + Bz_local.get_Nx() + 1) = Bz_local(0, Bz_local.get_Ny() - 1); // правый нижний узел
+      std::memcpy(Ex.data(), Ex_local.data(), Nx_local* Ny_local);
+      std::memcpy(Ey.data(), Ey_local.data(), Nx_local* Ny_local);
+      std::memcpy(Ez.data(), Ez_local.data(), Nx_local* Ny_local);
 
-    }
-    if (rank == mpi_comm_size - 1)
-    {
-      for (int64_t x = 0; x < Bx_local.get_Nx(); ++x) {
-        Bx_local(x, Bx_local.get_Ny()) = Bx_local(x, 0); // сверху
-        By_local(x, By_local.get_Ny() - 1) = By_local(x, 0); // сверху
-        Bz_local(x, Bz_local.get_Ny()) = Bz_local(x, 0); // сверху
-      }
-      Bx_local(-1, Bx_local.get_Ny()) = Bx_local(Bx_local.get_Nx() - 1, 0); // левый верхний узел
-      By_local(-1, By_local.get_Ny()) = By_local(By_local.get_Nx() - 1, 0); // левый верхний узел
-      Bz_local(-1, Bz_local.get_Ny()) = Bz_local(Bz_local.get_Nx() - 1, 0); // левый верхний узел
-      Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()) = Bx_local(0, 0); // правый верхний узел
-      By_local(By_local.get_Nx(), By_local.get_Ny()) = By_local(0, 0); // правый верхний узел
-      Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()) = Bz_local(0, 0); // правый верхний узел
+      std::memcpy(Bx.data(), Bx_local.data(), Nx_local* Ny_local);
+      std::memcpy(By.data(), By_local.data(), Nx_local* Ny_local);
+      std::memcpy(Bz.data(), Bz_local.data(), Nx_local* Ny_local);
 
+      //MPI_Send(Ex_local.data(), Nx_local * Ny_local, MPI_DOUBLE)
     }
 
-    for (int64_t y = 0; y < Bx_local.get_Ny(); ++y)
-    {
-      Bx_local(-1, y) = Bx_local(Bx_local.get_Nx() - 1, y); // слева
-      Bx_local(Bx_local.get_Nx(), y) = Bx_local(0, y); // справа
-
-      By_local(-1, y) = By_local(By_local.get_Nx() - 1, y); // слева
-      By_local(By_local.get_Nx(), y) = By_local(0, y); // справа
-
-      Bz_local(-1, y) = Bz_local(Bz_local.get_Nx() - 1, y); // слева
-      Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y); // справа
-    }
-  }
-
-  // Синхронизация смежных строк (для 2-мерного случая) 
-  if (mpi_comm_size > 1)
-  {
-    if (rank != mpi_comm_size - 1 && rank != 0)
-    {
-      MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-        Bx_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-      MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-        By_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-      MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-        Bz_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-
-      MPI_Sendrecv(Bx_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-        Bx_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-      MPI_Sendrecv(By_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-        By_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-      MPI_Sendrecv(Bz_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-        Bz_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-    }
-    else if (rank == 0)
-    {
-      MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-        Bx_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-      MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-        By_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-      MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-        Bz_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-    }
-    else // if (rank == mpi_comm_size - 1)
-    {
-      MPI_Sendrecv(Bx_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-        Bx_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-      MPI_Sendrecv(By_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-        By_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-      MPI_Sendrecv(Bz_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-        Bz_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-    }
-
-
-    MPI_Gather(Ex_local.data(), Ex_local.size(), MPI_DOUBLE, Ex.data(), Ex.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Gather(Ey_local.data(), Ey_local.size(), MPI_DOUBLE, Ey.data(), Ey.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Gather(Ez_local.data(), Ez_local.size(), MPI_DOUBLE, Ez.data(), Ez.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    MPI_Gather(Bx_local.data(), Bx_local.size(), MPI_DOUBLE, Bx.data(), Bx.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Gather(By_local.data(), By_local.size(), MPI_DOUBLE, By.data(), By.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Gather(Bz_local.data(), Bz_local.size(), MPI_DOUBLE, Bz.data(), Bz.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //MPI_Gather(Ex_local.data(), Ex.size(), MPI_DOUBLE, Ex.data(), Ex_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //MPI_Gather(Ey_local.data(), Ey.size(), MPI_DOUBLE, Ey.data(), Ey_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //MPI_Gather(Ez_local.data(), Ez.size(), MPI_DOUBLE, Ez.data(), Ez_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+   
+    //MPI_Gather(Bx_local.data(), Bx.size(), MPI_DOUBLE, Bx.data(), Bx_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //MPI_Gather(By_local.data(), By.size(), MPI_DOUBLE, By.data(), By_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    //MPI_Gather(Bz_local.data(), Bz.size(), MPI_DOUBLE, Bz.data(), Bz_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
   }
 
 //#else  
