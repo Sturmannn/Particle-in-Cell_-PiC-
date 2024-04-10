@@ -61,7 +61,6 @@ TEST(Test_version_comparison, shifted_OY) {
   //double t = 1e-12;
   // t = 1e-10;
 
-
   //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
   double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
 
