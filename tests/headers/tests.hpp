@@ -4,8 +4,8 @@
 #include "FDTD.hpp"
 #include "gtest.h"
 
-using FDTD::Component;
 using FDTD::Axis;
+using FDTD::Component;
 
 namespace gtest {
 
@@ -13,7 +13,6 @@ enum class Shift { shifted, unshifted };
 
 class Test_obj {
 public:
-
   Test_obj() = delete;
   Test_obj(const Component _E, const Component _B, FDTD::FDTD &_field);
   Test_obj(const Component _E, const Component _B, FDTD::FDTD &&_field);
@@ -25,10 +24,10 @@ public:
   Test_obj &operator=(Test_obj &&other_test_field) noexcept;
 
   void analytical_default_solution(const Component E, const Component B,
-                                      const double t, const Shift _shift);
+                                   const double t, const Shift _shift);
 
   void set_default_field(const Component E, const Component B,
-                            const Shift _shift);
+                         const Shift _shift);
 
   void numerical_solution(const double t, const Shift _shift);
   void numerical_solution(const int64_t t, const Shift _shift);
@@ -44,7 +43,6 @@ public:
   FDTD::FDTD analytical_field;
 
 private:
-
   Component E, B; // Компоненты поля
 
   void Courant_condition_check(const Shift _shift) const noexcept;
@@ -58,11 +56,12 @@ TEST(Test_version_comparison, shifted_OY) {
   // dt = 0.4625e-12;
   // double t = 2e-14;
 
-  //double t = 1e-12;
+  // double t = 1e-12;
   // t = 1e-10;
 
-  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
-  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
+  // double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
+  double dx =
+      (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
 
   dt = 0.25 * dx / C;
   int64_t t = 10;
@@ -71,7 +70,7 @@ TEST(Test_version_comparison, shifted_OY) {
   Component B = Component::Bx;
   Shift shift = Shift::shifted;
 
-  //FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
+  // FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
   FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
   Test_obj test(E, B, std::move(field));
   test.analytical_default_solution(E, B, t * dt, shift);
@@ -83,15 +82,14 @@ TEST(Test_version_comparison, shifted_OY) {
 
   int rank = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  if (rank == 0)
-  {
+  if (rank == 0) {
     Field::ComputingField::clear_file(path_to_calculated_data);
     Field::ComputingField::clear_file(path_to_analytic_data);
 
     test.field.write_fields_to_file(path_to_calculated_data, E, B,
-                                       test.field.get_dy());
+                                    test.field.get_dy());
     test.analytical_field.write_fields_to_file(path_to_analytic_data, E, B,
-                                                  test.field.get_dy());
+                                               test.field.get_dy());
   }
 
   // test.field.write_fields_to_file_OX(path_to_calculated_data,
@@ -210,7 +208,8 @@ TEST(Test_version_comparison, shifted_OY) {
 
 //=======================================================================================================================
 
-//TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration) {
+// TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__1_iteration)
+// {
 //  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = { 16ull, 16ull, 1ull };
 //  std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
 //  std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
@@ -219,8 +218,8 @@ TEST(Test_version_comparison, shifted_OY) {
 //  double dt = 1e-15;
 //  // double t = 2e-14;
 //  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
-//  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
-//  dt = 0.25 * dx / C;
+//  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) /
+//  std::get<0>(Nx_Ny_Nz); dt = 0.25 * dx / C;
 //  //double t = 1e-12;
 //
 //
@@ -262,20 +261,21 @@ TEST(Test_version_comparison, shifted_OY) {
 
 //=======================================================================================================================
 
-//TEST(Test_version_comparison, SHIFTED_Checking_the_convergence__several_iterations)
+// TEST(Test_version_comparison,
+// SHIFTED_Checking_the_convergence__several_iterations)
 //{
-//  std::cout << "======================Start several operations======================\n";
+//  std::cout << "======================Start several
+//  operations======================\n";
 //
-//  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = { 16ull, 16ull, 16ull }; // starting grid
-//  std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0 };
-//  std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
+//  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = { 16ull, 16ull, 16ull }; //
+//  starting grid std::tuple<double, double, double> ax_ay_az = { 0.0, 0.0, 0.0
+//  }; std::tuple<double, double, double> bx_by_bz = { 1.0, 1.0, 1.0 };
 //
 //  auto multiply_by_two = [](const auto& element) { return element * 2; };
 //
 //  //double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
-//  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
-//  double dt = 0.25 * dx / C;
-//  int64_t t = 10;
+//  double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) /
+//  std::get<0>(Nx_Ny_Nz); double dt = 0.25 * dx / C; int64_t t = 10;
 //
 //  FDTD::FDTD field_1(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
 //

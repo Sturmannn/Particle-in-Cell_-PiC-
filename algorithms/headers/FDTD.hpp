@@ -2,8 +2,8 @@
 #define __FDTD_HPP__
 
 #include <cmath>
-#include <tuple>
 #include <mpi.h>
+#include <tuple>
 
 #include "Field.hpp"
 
@@ -71,13 +71,16 @@ public:
   void shifted_field_update(const double t);
   void shifted_field_update(const int64_t t);
 
-  void write_fields_to_file(const char* path, Component E, Component B, const double delta,
-    const int64_t row_number = 0ull); // The col is fixed
-  
+  void
+  write_fields_to_file(const char *path, Component E, Component B,
+                       const double delta,
+                       const int64_t row_number = 0ull); // The col is fixed
+
   static Axis get_axis(const Component E, const Component B);
+
 private:
   // Приватные члены данных
-  int64_t Nx, Ny, Nz;                          // Размеры сетки
+  int64_t Nx, Ny, Nz;                           // Размеры сетки
   Field::ComputingField Ex, Ey, Ez, Bx, By, Bz; // Компоненты полей
   double ax, bx, ay, by, az, bz, dx, dy, dz, dt; // Коэффициенты и шаги
 };

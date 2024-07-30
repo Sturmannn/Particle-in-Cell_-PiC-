@@ -1,4 +1,5 @@
 #include "FDTD.hpp"
+#include <string.h>
 
 FDTD::FDTD::FDTD(const std::tuple<int64_t, int64_t, int64_t>& Nx_Ny_Nz,
   const std::tuple<double, double, double>& ax_ay_az,
@@ -218,7 +219,7 @@ void FDTD::FDTD::shifted_field_update(const double t)
   int64_t k = 0ull;
 
   //double start = omp_get_wtime();
-  for (double time = 0.0; time < t; time += dt) // ПОПРАВИТЬ НА time += E_dt
+  for (double time = 0.0; time < t; time += dt) // РџРћРџР РђР’РРўР¬ РќРђ time += E_dt
   {
     for (i = 0ull; i < Nx; ++i)
       for (j = 0ull; j < Ny; ++j)
@@ -273,11 +274,30 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
 
   int64_t Nx_local = get_Nx() + 2;
   int64_t Ny_local{};
-  if (mpi_comm_size == 1) 
-    Ny_local = (get_Ny() + 2) / mpi_comm_size;
-  else 
-    Ny_local = ((get_Ny() + 2) / mpi_comm_size) + 1; //   int64_t Ny_local = (get_Ny() + 2) / mpi_comm_size + 1;
   int64_t Nz_local = 1;
+
+  // РџРѕРєР° С‡С‚Рѕ С…РІРѕСЃС‚ СЏ Р·Р°РїРёС…РёРІР°СЋ РІСЃС‘ РІ root РїСЂРѕС†РµСЃСЃ (РїРѕС‚РѕРј РјРѕР¶РЅРѕ РїРѕРїСЂРѕР±РѕРІР°С‚СЊ Р±РѕР»РµРµ СЂР°РІРЅРѕРјРµСЂРЅРѕ СЂР°СЃРїСЂРµРґРµР»РёС‚СЊ РЅР° РґСЂСѓРіРёРµ РїСЂРѕС†РµСЃСЃС‹)
+  if (rank == 0)
+  {
+    Ny_local = get_Ny() / mpi_comm_size + 2 + get_Ny() % mpi_comm_size;
+    std::cout << "Ny_local0 = " << Ny_local << std::endl;
+  }
+  else
+  {
+    Ny_local = get_Ny() / mpi_comm_size + 2;
+    std::cout << "Ny_local(drugie) = " << Ny_local << std::endl;
+  }
+
+  //if (mpi_comm_size == 1)
+  //{
+  //  Ny_local = (get_Ny() + 2) / mpi_comm_size;
+  //  std::cout << "Ny_local0 = " << Ny_local << std::endl;
+  //}
+  //else
+  //{
+  //  Ny_local = ((get_Ny() + 2) / mpi_comm_size) + 1; //   int64_t Ny_local = (get_Ny() + 2) / mpi_comm_size + 1;
+  //  std::cout << "Ny_local(drugie) = " << Ny_local << std::endl;
+  //}
 
   //int64_t Nx_local = get_Nx();
   //int64_t Ny_local = get_Ny() / mpi_comm_size; //   int64_t Ny_local = (get_Ny() + 2) / mpi_comm_size + 1;
@@ -301,20 +321,33 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
   Field::ComputingField Bx_local(Nx_local - 2, Ny_local - 2);
   Field::ComputingField By_local(Nx_local - 2, Ny_local - 2);
   Field::ComputingField Bz_local(Nx_local - 2, Ny_local - 2);
+  //std::cout << "Ex_local[" << rank << "] = " << Nx_local - 2 << " " << Ny_local - 2 << std::endl;
+  std::cout << "Ex_local[" << rank << "] = " << Ex_local.size() << std::endl;
+  std::cout << "Ex[" << rank << "] = " << Ex.size() << std::endl;
 
-  // Пока что предполагается, что Ny кратно количеству процессов size! Также пока что рассматривается MPI для двумерного случая!
-  //MPI_Scatter(Ex.data(), Ex_local.size(), MPI_DOUBLE, Ex_local.data(), Ex_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  //MPI_Scatter(Ey.data(), Ey_local.size(), MPI_DOUBLE, Ey_local.data(), Ey_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  //MPI_Scatter(Ez.data(), Ez_local.size(), MPI_DOUBLE, Ez_local.data(), Ez_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  std::vector<int> sendcounts{};
+  int recvcountGather = Nx_local * Ny_local;
+  if (rank == 0)
+    sendcounts.resize(mpi_comm_size);
+  // РЎРѕР±РёСЂР°СЋ РЅР° root РїСЂРѕС†РµСЃСЃРµ СЂР°Р·РјРµСЂ РґР°РЅРЅС‹С… РґР»СЏ СЂР°СЃСЃС‹Р»РєРё
+  MPI_Gather(&recvcountGather, 1, MPI_INT, sendcounts.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
 
-  //MPI_Scatter(Bx.data(), Bx_local.size(), MPI_DOUBLE, Bx_local.data(), Bx_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  //MPI_Scatter(By.data(), By_local.size(), MPI_DOUBLE, By_local.data(), By_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-  //MPI_Scatter(Bz.data(), Bz_local.size(), MPI_DOUBLE, Bz_local.data(), Bz_local.size(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  if (rank == 0)
+  {
+    for (int i = 0; i < mpi_comm_size; ++i)
+    std::cout << "sendconts[" << i << "] = " << sendcounts[i] << std::endl;
 
-  std::vector<int> sendcounts(mpi_comm_size, static_cast<int>(Nx_local * Ny_local));
+  }
   std::vector<int> displs(mpi_comm_size);
-  for (int i = 0; i < displs.size(); ++i)
-    displs[i] = (static_cast<int>(Ny_local) - 2) * static_cast<int>(Nx_local) * i;
+  // РЎРјРµС‰РµРЅРёСЏ СЃС‡РёС‚Р°СЋС‚СЃСЏ С‚РѕР»СЊРєРѕ РЅР° РѕС‚СЃС‹Р»Р°СЋС‰РµРј РїСЂРѕС†РµСЃСЃРµ
+  if (rank == 0)
+  {
+    for (int i = 0; i < displs.size(); ++i)
+    {
+      displs[i] = (static_cast<int>(Ny_local) - 2) * static_cast<int>(Nx_local) * i;
+      std::cout << "displs[" << i << "] = " << displs[i] << std::endl;
+    }
+  }
 
   MPI_Scatterv(Ex.data(), sendcounts.data(), displs.data(), MPI_DOUBLE, Ex_local.data(), static_cast<int>(Ex_local.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
   MPI_Scatterv(Ey.data(), sendcounts.data(), displs.data(), MPI_DOUBLE, Ey_local.data(), static_cast<int>(Ey_local.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
@@ -329,7 +362,7 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
   //{
   //  *(Bx.data() + i) = 0;
   //}
-
+  //
   //if (rank == 0)
   //{
   //  for (int i = 0; i < By_local.size(); ++i)
@@ -357,88 +390,88 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
           By_local(i, j, k) = By_local(i, j, k) + C * B_dt * ((Ez_local(i + 1, j, k) - Ez_local(i, j, k)) / dx /*- (Ex_local(i, j, k + 1) - Ex_local(i, j, k)) / dz*/);
           Bz_local(i, j, k) = Bz_local(i, j, k) + C * B_dt * ((Ex_local(i, j + 1, k) - Ex_local(i, j, k)) / dy - (Ey_local(i + 1, j, k) - Ey_local(i, j, k)) / dx);
         }
-    // Обновляю границу - верх 2-х мерной системы
+
+    // РћР±РЅРѕРІР»СЏСЋ Р±РѕРєР°
+    for (int64_t y = 0; y < Bx_local.get_Ny(); ++y)
+    {
+      Bx_local(-1, y) = Bx_local(Bx_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //Bx_local(Bx_local.get_Nx(), y) = Bx_local(0, y); // СЃРїСЂР°РІР°
+
+      By_local(-1, y) = By_local(By_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      By_local(By_local.get_Nx(), y) = By_local(0, y); // СЃРїСЂР°РІР°
+
+      Bz_local(-1, y) = Bz_local(Bz_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y); // СЃРїСЂР°РІР°
+    }
+
+    // РћР±РЅРѕРІР»СЏСЋ РіСЂР°РЅРёС†Сѓ - РІРµСЂС… 2-С… РјРµСЂРЅРѕР№ СЃРёСЃС‚РµРјС‹
     if (rank == 0 && mpi_comm_size != 1)
     {
-      // Получаю верхнюю строчку последнего процесса для синхронизации нулевой строчки нулевого процесса
-      // Замечание: здесь get_Nx() = Nx_local - 2
-      for (int64_t y = 0; y < Bx_local.get_Ny(); ++y)
-      {
-        Bx_local(-1, y) = Bx_local(Bx_local.get_Nx() - 1, y); // слева
-        //Bx_local(Bx_local.get_Nx(), y) = Bx_local(0, y); // справа
+      // РџРѕР»СѓС‡Р°СЋ РІРµСЂС…РЅСЋСЋ СЃС‚СЂРѕС‡РєСѓ РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР° РґР»СЏ СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕС‡РєРё РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
+      // Р—Р°РјРµС‡Р°РЅРёРµ: Р·РґРµСЃСЊ get_Nx() = Nx_local - 2
+      MPI_Recv(Bx_local.data() + 1, static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 0, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ 
+      MPI_Recv(By_local.data() + 1, static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ
+      MPI_Recv(Bz_local.data() + 1, static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 2, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ
 
-        By_local(-1, y) = By_local(By_local.get_Nx() - 1, y); // слева
-        By_local(By_local.get_Nx(), y) = By_local(0, y); // справа
+      MPI_Recv(Bx_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 3, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      MPI_Recv(By_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 4, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      MPI_Recv(Bz_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 5, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-        Bz_local(-1, y) = Bz_local(Bz_local.get_Nx() - 1, y); // слева
-        Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y); // справа
-      }
-
-      MPI_Recv(Bx_local.data() + 1, static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 0, MPI_COMM_WORLD, &status); // снизу 
-      MPI_Recv(By_local.data() + 1, static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, &status); // снизу
-      MPI_Recv(Bz_local.data() + 1, static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 2, MPI_COMM_WORLD, &status); // снизу
-
-      MPI_Recv(Bx_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 3, MPI_COMM_WORLD, &status); // левый нижний узел
-      MPI_Recv(By_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 4, MPI_COMM_WORLD, &status); // левый нижний узел
-      MPI_Recv(Bz_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 5, MPI_COMM_WORLD, &status); // левый нижний узел
-
-      MPI_Recv(Bx_local.data() + static_cast<int>(Bx_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 6, MPI_COMM_WORLD, &status); // правый нижний узел
-      MPI_Recv(By_local.data() + static_cast<int>(By_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 7, MPI_COMM_WORLD, &status); // правый нижний узел
-      MPI_Recv(Bz_local.data() + static_cast<int>(Bz_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 8, MPI_COMM_WORLD, &status); // правый нижний узел
+      MPI_Recv(Bx_local.data() + static_cast<int>(Bx_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 6, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      MPI_Recv(By_local.data() + static_cast<int>(By_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 7, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      MPI_Recv(Bz_local.data() + static_cast<int>(Bz_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 8, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
 
-      MPI_Ssend(&Bx_local(0, 0), static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 9, MPI_COMM_WORLD); // Верх последнего процесса
-      MPI_Ssend(&By_local(0, 0), static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 10, MPI_COMM_WORLD); // Верх последнего процесса
-      MPI_Ssend(&Bz_local(0, 0), static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 11, MPI_COMM_WORLD); // Верх последнего процесса
+      MPI_Ssend(&Bx_local(0, 0), static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 9, MPI_COMM_WORLD); // Р’РµСЂС… РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР°
+      MPI_Ssend(&By_local(0, 0), static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 10, MPI_COMM_WORLD); // Р’РµСЂС… РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР°
+      MPI_Ssend(&Bz_local(0, 0), static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 11, MPI_COMM_WORLD); // Р’РµСЂС… РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР°
 
-      MPI_Ssend(&Bx_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 12, MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла посл. процесса)
-      MPI_Ssend(&By_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 13, MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла посл. процесса)
-      MPI_Ssend(&Bz_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 14, MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла посл. процесса)
+      MPI_Ssend(&Bx_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 12, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ РїСЂР°РІРѕРіРѕ РІСЂРµС…РЅРµРіРѕ СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
+      MPI_Ssend(&By_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 13, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ РїСЂР°РІРѕРіРѕ РІСЂРµС…РЅРµРіРѕ СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
+      MPI_Ssend(&Bz_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 14, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ РїСЂР°РІРѕРіРѕ РІСЂРµС…РЅРµРіРѕ СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
 
-      MPI_Ssend(&Bx_local(Bx_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 15, MPI_COMM_WORLD); // правый нижний угол (для лев. верх. угла посл. процесса)
-      MPI_Ssend(&By_local(By_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 16, MPI_COMM_WORLD); // правый нижний угол (для лев. верх. угла посл. процесса)
-      MPI_Ssend(&Bz_local(Bz_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 17, MPI_COMM_WORLD); // правый нижний угол (для лев. верх. угла посл. процесса)
-      //for (size_t i = 0; i < 84; ++i)
-      //  std::cout << "00Bx[" << i << "] = " << *(Bx_local.data() + i) << "\n";
+      MPI_Ssend(&Bx_local(Bx_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 15, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ Р»РµРІ. РІРµСЂС…. СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
+      MPI_Ssend(&By_local(By_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 16, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ Р»РµРІ. РІРµСЂС…. СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
+      MPI_Ssend(&Bz_local(Bz_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 17, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ Р»РµРІ. РІРµСЂС…. СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
     }
     if (rank == mpi_comm_size - 1 && mpi_comm_size != 1)
     {
-      for (int64_t y = 0; y < Bx_local.get_Ny(); ++y)
-      {
-        Bx_local(-1, y) = Bx_local(Bx_local.get_Nx() - 1, y); // слева
-        //Bx_local(Bx_local.get_Nx(), y) = Bx_local(0, y); // справа
+      //for (int64_t y = 0; y < Bx_local.get_Ny(); ++y)
+      //{
+      //  Bx_local(-1, y) = Bx_local(Bx_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  Bx_local(Bx_local.get_Nx(), y) = Bx_local(0, y); // СЃРїСЂР°РІР°
+      //
+      //  By_local(-1, y) = By_local(By_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  By_local(By_local.get_Nx(), y) = By_local(0, y); // СЃРїСЂР°РІР°
+      //
+      //  Bz_local(-1, y) = Bz_local(Bz_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y); // СЃРїСЂР°РІР°
+      //}
+      // РћС‚РїСЂР°РІР»СЏСЋ РІРµСЂС…РЅСЋСЋ СЃС‚СЂРѕС‡РєСѓ РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР° РЅСѓР»РµРІРѕРјСѓ РїСЂРѕС†РµСЃСЃСѓ РґР»СЏ РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕС‡РєРё
 
-        By_local(-1, y) = By_local(By_local.get_Nx() - 1, y); // слева
-        By_local(By_local.get_Nx(), y) = By_local(0, y); // справа
+      MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD); // РќРёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 0)
+      MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD); // РќРёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 1)
+      MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, 0, 2, MPI_COMM_WORLD); // РќРёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 2)
 
-        Bz_local(-1, y) = Bz_local(Bz_local.get_Nx() - 1, y); // слева
-        Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y); // справа
-      }
-      // Отправляю верхнюю строчку последнего процесса нулевому процессу для нулевой строчки
+      MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 3)
+      MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 4, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 4)
+      MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 5, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 5)
 
-      MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD); // Низ нулевого процесса (тэг 0)
-      MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD); // Низ нулевого процесса (тэг 1)
-      MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, 0, 2, MPI_COMM_WORLD); // Низ нулевого процесса (тэг 2)
+      MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 6, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
+      MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 7, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
+      MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 8, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
 
-      MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 3)
-      MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 4, MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 4)
-      MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 5, MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 5)
+      MPI_Recv(&Bx_local(0, Bx_local.get_Ny()), static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, 0, 9, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ (РїРѕР»СѓС‡РµРЅРёРµ РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕРєРё РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&By_local(0, By_local.get_Ny()), static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, 0, 10, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ (РїРѕР»СѓС‡РµРЅРёРµ РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕРєРё РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Bz_local(0, Bz_local.get_Ny()), static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, 0, 11, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ (РїРѕР»СѓС‡РµРЅРёРµ РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕРєРё РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
 
-      MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 6, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-      MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 7, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-      MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 8, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+      MPI_Recv(&Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()), 1, MPI_DOUBLE, 0, 12, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&By_local(By_local.get_Nx(), By_local.get_Ny()), 1, MPI_DOUBLE, 0, 13, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()), 1, MPI_DOUBLE, 0, 14, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
 
-      MPI_Recv(&Bx_local(0, Bx_local.get_Ny()), static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, 0, 9, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-      MPI_Recv(&By_local(0, By_local.get_Ny()), static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, 0, 10, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-      MPI_Recv(&Bz_local(0, Bz_local.get_Ny()), static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, 0, 11, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-
-      MPI_Recv(&Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()), 1, MPI_DOUBLE, 0, 12, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-      MPI_Recv(&By_local(By_local.get_Nx(), By_local.get_Ny()), 1, MPI_DOUBLE, 0, 13, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-      MPI_Recv(&Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()), 1, MPI_DOUBLE, 0, 14, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-
-      MPI_Recv(&Bx_local(-1, Bx_local.get_Ny()), 1, MPI_DOUBLE, 0, 15, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
-      MPI_Recv(&By_local(-1, By_local.get_Ny()), 1, MPI_DOUBLE, 0, 16, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
-      MPI_Recv(&Bz_local(-1, Bz_local.get_Ny()), 1, MPI_DOUBLE, 0, 17, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Bx_local(-1, Bx_local.get_Ny()), 1, MPI_DOUBLE, 0, 15, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&By_local(-1, By_local.get_Ny()), 1, MPI_DOUBLE, 0, 16, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Bz_local(-1, Bz_local.get_Ny()), 1, MPI_DOUBLE, 0, 17, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
 
     }
     MPI_Barrier(MPI_COMM_WORLD);
@@ -449,40 +482,40 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
     {
       for (int64_t x = 0; x < Bx_local.get_Nx(); ++x)
       {
-        *(Bx_local.data() + x + 1) = Bx_local(x, Bx_local.get_Ny() - 1); // снизу
-        Bx_local(x, Bx_local.get_Ny()) = Bx_local(x, 0); // сверху
+        *(Bx_local.data() + x + 1) = Bx_local(x, Bx_local.get_Ny() - 1); // СЃРЅРёР·Сѓ
+        Bx_local(x, Bx_local.get_Ny()) = Bx_local(x, 0); // СЃРІРµСЂС…Сѓ
       
-        *(By_local.data() + x + 1) = By_local(x, By_local.get_Ny() - 1); // снизу
-        By_local(x, By_local.get_Ny()) = By_local(x, 0); // сверху
+        *(By_local.data() + x + 1) = By_local(x, By_local.get_Ny() - 1); // СЃРЅРёР·Сѓ
+        By_local(x, By_local.get_Ny()) = By_local(x, 0); // СЃРІРµСЂС…Сѓ
       
-        *(Bz_local.data() + x + 1) = Bz_local(x, Bz_local.get_Ny() - 1); // снизу
-        Bz_local(x, Bz_local.get_Ny()) = Bz_local(x, 0); // сверху
+        *(Bz_local.data() + x + 1) = Bz_local(x, Bz_local.get_Ny() - 1); // СЃРЅРёР·Сѓ
+        Bz_local(x, Bz_local.get_Ny()) = Bz_local(x, 0); // СЃРІРµСЂС…Сѓ
       }
       for (int64_t y = 0; y < Bx_local.get_Ny(); ++y)
       {
-        Bx_local(-1, y) = Bx_local(Bx_local.get_Nx() - 1, y); // слева
-        //Bx_local(Bx_local.get_Nx(), y) = Bx_local(0, y); // справа
+        Bx_local(-1, y) = Bx_local(Bx_local.get_Nx() - 1, y); // СЃР»РµРІР°
+        //Bx_local(Bx_local.get_Nx(), y) = Bx_local(0, y); // СЃРїСЂР°РІР°
 
-        By_local(-1, y) = By_local(By_local.get_Nx() - 1, y); // слева
-        By_local(By_local.get_Nx(), y) = By_local(0, y); // справа
+        By_local(-1, y) = By_local(By_local.get_Nx() - 1, y); // СЃР»РµРІР°
+        By_local(By_local.get_Nx(), y) = By_local(0, y); // СЃРїСЂР°РІР°
 
-        Bz_local(-1, y) = Bz_local(Bz_local.get_Nx() - 1, y); // слева
-        Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y); // справа
+        Bz_local(-1, y) = Bz_local(Bz_local.get_Nx() - 1, y); // СЃР»РµРІР°
+        Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y); // СЃРїСЂР°РІР°
       }
-      Bx_local(-1, -1) = Bx_local(Bx_local.get_Nx() - 1, Bx_local.get_Ny() - 1); // левый нижний узел
-      Bx_local(-1, Bx_local.get_Ny()) = Bx_local(Bx_local.get_Nx() - 1, 0); // левый верхний узел
-      Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()) = Bx_local(0, 0); // правый верхний узел
-      *(Bx_local.data() + Bx_local.get_Nx() + 1) = Bx_local(0, Bx_local.get_Ny() - 1); // правый нижний узел
+      Bx_local(-1, -1) = Bx_local(Bx_local.get_Nx() - 1, Bx_local.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      Bx_local(-1, Bx_local.get_Ny()) = Bx_local(Bx_local.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()) = Bx_local(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      *(Bx_local.data() + Bx_local.get_Nx() + 1) = Bx_local(0, Bx_local.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-      By_local(-1, -1) = By_local(By_local.get_Nx() - 1, By_local.get_Ny() - 1); // левый нижний узел
-      By_local(-1, By_local.get_Ny()) = By_local(By_local.get_Nx() - 1, 0); // левый верхний узел
-      By_local(By_local.get_Nx(), By_local.get_Ny()) = By_local(0, 0); // правый верхний узел
-      *(By_local.data() + By_local.get_Nx() + 1) = By_local(0, By_local.get_Ny() - 1); // правый нижний узел
+      By_local(-1, -1) = By_local(By_local.get_Nx() - 1, By_local.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      By_local(-1, By_local.get_Ny()) = By_local(By_local.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      By_local(By_local.get_Nx(), By_local.get_Ny()) = By_local(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      *(By_local.data() + By_local.get_Nx() + 1) = By_local(0, By_local.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-      Bz_local(-1, -1) = Bz_local(Bz_local.get_Nx() - 1, Bz_local.get_Ny() - 1); // левый нижний узел
-      Bz_local(-1, Bz_local.get_Ny()) = Bz_local(Bz_local.get_Nx() - 1, 0); // левый верхний узел
-      Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()) = Bz_local(0, 0); // правый верхний узел
-      *(Bz_local.data() + Bz_local.get_Nx() + 1) = Bz_local(0, Bz_local.get_Ny() - 1); // правый нижний узел
+      Bz_local(-1, -1) = Bz_local(Bz_local.get_Nx() - 1, Bz_local.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      Bz_local(-1, Bz_local.get_Ny()) = Bz_local(Bz_local.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()) = Bz_local(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      *(Bz_local.data() + Bz_local.get_Nx() + 1) = Bz_local(0, Bz_local.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
     }
 
     //if (rank == 0)
@@ -501,62 +534,43 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
     //
     //}
 
-    // Синхронизация смежных строк (для 2-мерного случая)
+    // РЎРёРЅС…СЂРѕРЅРёР·Р°С†РёСЏ СЃРјРµР¶РЅС‹С… СЃС‚СЂРѕРє (РґР»СЏ 2-РјРµСЂРЅРѕРіРѕ СЃР»СѓС‡Р°СЏ)
     if (mpi_comm_size > 1)
     {
       if (rank != mpi_comm_size - 1 && rank != 0)
       {
         MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Bx_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          Bx_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          By_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          By_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Bz_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          Bz_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
 
         MPI_Sendrecv(Bx_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Bx_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          Bx_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(By_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          By_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          By_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Bz_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Bz_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          Bz_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
       }
       else if (rank == 0)
       {
         MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Bx_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          Bx_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          By_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          By_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Bz_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-
-        //MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank, MPI_COMM_WORLD);
-        //MPI_Recv(Bx_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status);
-
-        //MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank, MPI_COMM_WORLD);
-        //MPI_Recv(By_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status);
-
-        //MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank, MPI_COMM_WORLD);
-        //MPI_Recv(Bz_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status);
+          Bz_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
       }
       else // if (rank == mpi_comm_size - 1)
       {
 
         MPI_Sendrecv(Bx_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Bx_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          Bx_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(By_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          By_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          By_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Bz_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Bz_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-
-        //MPI_Recv(Bx_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status);
-        //MPI_Ssend(Bx_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank, MPI_COMM_WORLD);
-
-        //MPI_Recv(By_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status);
-        //MPI_Ssend(By_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank, MPI_COMM_WORLD);
-
-        //MPI_Recv(Bz_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status);
-        //MPI_Ssend(Bz_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank, MPI_COMM_WORLD);
-
+          Bz_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
       }
       MPI_Barrier(MPI_COMM_WORLD);
       //if (rank == 0)
@@ -584,183 +598,179 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
           Ey_local(i, j, k) = Ey_local(i, j, k) + C * E_dt * (/*(Bx_local(i, j, k) - Bx_local(i, j, k - 1)) / dz*/ - (Bz_local(i, j, k) - Bz_local(i - 1, j, k)) / dx);
           Ez_local(i, j, k) = Ez_local(i, j, k) + C * E_dt * ((By_local(i, j, k) - By_local(i - 1, j, k)) / dx - (Bx_local(i, j, k) - Bx_local(i, j - 1, k)) / dy);
         }
-    // Обновляю границу - верх 2-х мерной системы
+    // РћР±РЅРѕРІР»СЏСЋ Р±РѕРєР°
+    for (int64_t y = 0; y < Ex_local.get_Ny(); ++y)
+    {
+      Ex_local(-1, y) = Ex_local(Ex_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      Ex_local(Ex_local.get_Nx(), y) = Ex_local(0, y); // СЃРїСЂР°РІР°
+
+      Ey_local(-1, y) = Ey_local(Ey_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      Ey_local(Ey_local.get_Nx(), y) = Ey_local(0, y); // СЃРїСЂР°РІР°
+
+      Ez_local(-1, y) = Ez_local(Ez_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // СЃРїСЂР°РІР°
+    }
+
+    // РћР±РЅРѕРІР»СЏСЋ РіСЂР°РЅРёС†Сѓ - РІРµСЂС… 2-С… РјРµСЂРЅРѕР№ СЃРёСЃС‚РµРјС‹
     if (rank == 0 && mpi_comm_size != 1)
     {
 
-      for (int64_t y = 0; y < Ex_local.get_Ny(); ++y)
-      {
-        Ex_local(-1, y) = Ex_local(Ex_local.get_Nx() - 1, y); // слева
-        Ex_local(Ex_local.get_Nx(), y) = Ex_local(0, y); // справа
+      //for (int64_t y = 0; y < Ex_local.get_Ny(); ++y)
+      //{
+      //  Ex_local(-1, y) = Ex_local(Ex_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  Ex_local(Ex_local.get_Nx(), y) = Ex_local(0, y); // СЃРїСЂР°РІР°
+      //
+      //  Ey_local(-1, y) = Ey_local(Ey_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  Ey_local(Ey_local.get_Nx(), y) = Ey_local(0, y); // СЃРїСЂР°РІР°
+      //
+      //  Ez_local(-1, y) = Ez_local(Ez_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // СЃРїСЂР°РІР°
+      //}
+      // РџРѕР»СѓС‡Р°СЋ РІРµСЂС…РЅСЋСЋ СЃС‚СЂРѕС‡РєСѓ РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР° РґР»СЏ СЃРёРЅС…СЂРѕРЅРёР·Р°С†РёРё РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕС‡РєРё РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
+      // Р—Р°РјРµС‡Р°РЅРёРµ: Р·РґРµСЃСЊ get_Nx() = Nx_local - 2
+      MPI_Recv(Ex_local.data() + 1, static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 0, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ 
+      MPI_Recv(Ey_local.data() + 1, static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ
+      MPI_Recv(Ez_local.data() + 1, static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 2, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ
 
-        Ey_local(-1, y) = Ey_local(Ey_local.get_Nx() - 1, y); // слева
-        Ey_local(Ey_local.get_Nx(), y) = Ey_local(0, y); // справа
+      MPI_Recv(Ex_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 3, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      MPI_Recv(Ey_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 4, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      MPI_Recv(Ez_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 5, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-        Ez_local(-1, y) = Ez_local(Ez_local.get_Nx() - 1, y); // слева
-        Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // справа
-      }
-      // Получаю верхнюю строчку последнего процесса для синхронизации нулевой строчки нулевого процесса
-      // Замечание: здесь get_Nx() = Nx_local - 2
-      MPI_Recv(Ex_local.data() + 1, static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 0, MPI_COMM_WORLD, &status); // снизу 
-      MPI_Recv(Ey_local.data() + 1, static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, &status); // снизу
-      MPI_Recv(Ez_local.data() + 1, static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 2, MPI_COMM_WORLD, &status); // снизу
-
-      MPI_Recv(Ex_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 3, MPI_COMM_WORLD, &status); // левый нижний узел
-      MPI_Recv(Ey_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 4, MPI_COMM_WORLD, &status); // левый нижний узел
-      MPI_Recv(Ez_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, 5, MPI_COMM_WORLD, &status); // левый нижний узел
-
-      MPI_Recv(Ex_local.data() + static_cast<int>(Ex_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 6, MPI_COMM_WORLD, &status); // правый нижний узел
-      MPI_Recv(Ey_local.data() + static_cast<int>(Ey_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 7, MPI_COMM_WORLD, &status); // правый нижний узел
-      MPI_Recv(Ez_local.data() + static_cast<int>(Ez_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 8, MPI_COMM_WORLD, &status); // правый нижний узел
+      MPI_Recv(Ex_local.data() + static_cast<int>(Ex_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 6, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      MPI_Recv(Ey_local.data() + static_cast<int>(Ey_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 7, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      MPI_Recv(Ez_local.data() + static_cast<int>(Ez_local.get_Nx()) + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, 8, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
 
-      MPI_Ssend(&Ex_local(0, 0), static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 9, MPI_COMM_WORLD); // Верх последнего процесса
-      MPI_Ssend(&Ey_local(0, 0), static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 10, MPI_COMM_WORLD); // Верх последнего процесса
-      MPI_Ssend(&Ez_local(0, 0), static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 11, MPI_COMM_WORLD); // Верх последнего процесса
+      MPI_Ssend(&Ex_local(0, 0), static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 9, MPI_COMM_WORLD); // Р’РµСЂС… РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР°
+      MPI_Ssend(&Ey_local(0, 0), static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 10, MPI_COMM_WORLD); // Р’РµСЂС… РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР°
+      MPI_Ssend(&Ez_local(0, 0), static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, mpi_comm_size - 1, 11, MPI_COMM_WORLD); // Р’РµСЂС… РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР°
 
-      MPI_Ssend(&Ex_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 12, MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла посл. процесса)
-      MPI_Ssend(&Ey_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 13, MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла посл. процесса)
-      MPI_Ssend(&Ez_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 14, MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла посл. процесса)
+      MPI_Ssend(&Ex_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 12, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ РїСЂР°РІРѕРіРѕ РІСЂРµС…РЅРµРіРѕ СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
+      MPI_Ssend(&Ey_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 13, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ РїСЂР°РІРѕРіРѕ РІСЂРµС…РЅРµРіРѕ СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
+      MPI_Ssend(&Ez_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 14, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ РїСЂР°РІРѕРіРѕ РІСЂРµС…РЅРµРіРѕ СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
 
-      MPI_Ssend(&Ex_local(Ex_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 15, MPI_COMM_WORLD); // правый нижний угол (для лев. верх. угла посл. процесса)
-      MPI_Ssend(&Ey_local(Ey_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 16, MPI_COMM_WORLD); // правый нижний угол (для лев. верх. угла посл. процесса)
-      MPI_Ssend(&Ez_local(Ez_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 17, MPI_COMM_WORLD); // правый нижний угол (для лев. верх. угла посл. процесса)
+      MPI_Ssend(&Ex_local(Ex_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 15, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ Р»РµРІ. РІРµСЂС…. СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
+      MPI_Ssend(&Ey_local(Ey_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 16, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ Р»РµРІ. РІРµСЂС…. СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
+      MPI_Ssend(&Ez_local(Ez_local.get_Nx() - 1, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 17, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР» (РґР»СЏ Р»РµРІ. РІРµСЂС…. СѓРіР»Р° РїРѕСЃР». РїСЂРѕС†РµСЃСЃР°)
     }
     if (rank == mpi_comm_size - 1 && mpi_comm_size != 1)
     {
 
-      for (int64_t y = 0; y < Ex_local.get_Ny(); ++y)
-      {
-        Ex_local(-1, y) = Ex_local(Ex_local.get_Nx() - 1, y); // слева
-        Ex_local(Ex_local.get_Nx(), y) = Ex_local(0, y); // справа
+      //for (int64_t y = 0; y < Ex_local.get_Ny(); ++y)
+      //{
+      //  Ex_local(-1, y) = Ex_local(Ex_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  Ex_local(Ex_local.get_Nx(), y) = Ex_local(0, y); // СЃРїСЂР°РІР°
+      //
+      //  Ey_local(-1, y) = Ey_local(Ey_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  Ey_local(Ey_local.get_Nx(), y) = Ey_local(0, y); // СЃРїСЂР°РІР°
+      //
+      //  Ez_local(-1, y) = Ez_local(Ez_local.get_Nx() - 1, y); // СЃР»РµРІР°
+      //  Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // СЃРїСЂР°РІР°
+      //}
+     
+      // РћС‚РїСЂР°РІР»СЏСЋ РІРµСЂС…РЅСЋСЋ СЃС‚СЂРѕС‡РєСѓ РїРѕСЃР»РµРґРЅРµРіРѕ РїСЂРѕС†РµСЃСЃР° РЅСѓР»РµРІРѕРјСѓ РїСЂРѕС†РµСЃСЃСѓ РґР»СЏ РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕС‡РєРё
 
-        Ey_local(-1, y) = Ey_local(Ey_local.get_Nx() - 1, y); // слева
-        Ey_local(Ey_local.get_Nx(), y) = Ey_local(0, y); // справа
+      MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD); // РќРёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 0)
+      MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD); // РќРёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 1)
+      MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, 0, 2, MPI_COMM_WORLD); // РќРёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 2)
 
-        Ez_local(-1, y) = Ez_local(Ez_local.get_Nx() - 1, y); // слева
-        Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // справа
-      }
-      // Отправляю верхнюю строчку последнего процесса нулевому процессу для нулевой строчки
+      MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 3)
+      MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 4, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 4)
+      MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 5, MPI_COMM_WORLD); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР° (С‚СЌРі 5)
 
-      MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD); // Низ нулевого процесса (тэг 0)
-      MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD); // Низ нулевого процесса (тэг 1)
-      MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 2) + 1, static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, 0, 2, MPI_COMM_WORLD); // Низ нулевого процесса (тэг 2)
+      MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 6, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
+      MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 7, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
+      MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 8, MPI_COMM_WORLD); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР» СѓР·РµР» РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
 
-      MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 3, MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 3)
-      MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 4, MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 4)
-      MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, 5, MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 5)
+      MPI_Recv(&Ex_local(0, Ex_local.get_Ny()), static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, 0, 9, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ (РїРѕР»СѓС‡РµРЅРёРµ РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕРєРё РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Ey_local(0, Ey_local.get_Ny()), static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, 0, 10, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ (РїРѕР»СѓС‡РµРЅРёРµ РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕРєРё РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Ez_local(0, Ez_local.get_Ny()), static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, 0, 11, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ (РїРѕР»СѓС‡РµРЅРёРµ РЅСѓР»РµРІРѕР№ СЃС‚СЂРѕРєРё РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
 
-      MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 6, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-      MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 7, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-      MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, 8, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
+      MPI_Recv(&Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()), 1, MPI_DOUBLE, 0, 12, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()), 1, MPI_DOUBLE, 0, 13, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()), 1, MPI_DOUBLE, 0, 14, MPI_COMM_WORLD, &status); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
 
-      MPI_Recv(&Ex_local(0, Ex_local.get_Ny()), static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, 0, 9, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-      MPI_Recv(&Ey_local(0, Ey_local.get_Ny()), static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, 0, 10, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-      MPI_Recv(&Ez_local(0, Ez_local.get_Ny()), static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, 0, 11, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-
-      MPI_Recv(&Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()), 1, MPI_DOUBLE, 0, 12, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-      MPI_Recv(&Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()), 1, MPI_DOUBLE, 0, 13, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-      MPI_Recv(&Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()), 1, MPI_DOUBLE, 0, 14, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-
-      MPI_Recv(&Ex_local(-1, Ex_local.get_Ny()), 1, MPI_DOUBLE, 0, 15, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
-      MPI_Recv(&Ey_local(-1, Ey_local.get_Ny()), 1, MPI_DOUBLE, 0, 16, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
-      MPI_Recv(&Ez_local(-1, Ez_local.get_Ny()), 1, MPI_DOUBLE, 0, 17, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
+      MPI_Recv(&Ex_local(-1, Ex_local.get_Ny()), 1, MPI_DOUBLE, 0, 15, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Ey_local(-1, Ey_local.get_Ny()), 1, MPI_DOUBLE, 0, 16, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
+      MPI_Recv(&Ez_local(-1, Ez_local.get_Ny()), 1, MPI_DOUBLE, 0, 17, MPI_COMM_WORLD, &status); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР» (РїРѕР»СѓС‡РµРЅРёРµ РёР· РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°)
     }
 
     if (mpi_comm_size == 1)
     {
       for (int64_t x = 0; x < Ex_local.get_Nx(); ++x)
       {
-        *(Ex_local.data() + x + 1) = Ex_local(x, Ex_local.get_Ny() - 1); // снизу
-        Ex_local(x, Ex_local.get_Ny()) = Ex_local(x, 0); // сверху
+        *(Ex_local.data() + x + 1) = Ex_local(x, Ex_local.get_Ny() - 1); // СЃРЅРёР·Сѓ
+        Ex_local(x, Ex_local.get_Ny()) = Ex_local(x, 0); // СЃРІРµСЂС…Сѓ
 
-        *(Ey_local.data() + x + 1) = Ey_local(x, Ey_local.get_Ny() - 1); // снизу
-        Ey_local(x, Ey_local.get_Ny()) = Ey_local(x, 0); // сверху
+        *(Ey_local.data() + x + 1) = Ey_local(x, Ey_local.get_Ny() - 1); // СЃРЅРёР·Сѓ
+        Ey_local(x, Ey_local.get_Ny()) = Ey_local(x, 0); // СЃРІРµСЂС…Сѓ
 
-        *(Ez_local.data() + x + 1) = Ez_local(x, Ez_local.get_Ny() - 1); // снизу
-        Ez_local(x, Ez_local.get_Ny()) = Ez_local(x, 0); // сверху
+        *(Ez_local.data() + x + 1) = Ez_local(x, Ez_local.get_Ny() - 1); // СЃРЅРёР·Сѓ
+        Ez_local(x, Ez_local.get_Ny()) = Ez_local(x, 0); // СЃРІРµСЂС…Сѓ
       }
       for (int64_t y = 0; y < Ex_local.get_Ny(); ++y)
       {
-        Ex_local(-1, y) = Ex_local(Ex_local.get_Nx() - 1, y); // слева
-        Ex_local(Ex_local.get_Nx(), y) = Ex_local(0, y); // справа
+        Ex_local(-1, y) = Ex_local(Ex_local.get_Nx() - 1, y); // СЃР»РµРІР°
+        Ex_local(Ex_local.get_Nx(), y) = Ex_local(0, y); // СЃРїСЂР°РІР°
 
-        Ey_local(-1, y) = Ey_local(Ey_local.get_Nx() - 1, y); // слева
-        Ey_local(Ey_local.get_Nx(), y) = Ey_local(0, y); // справа
+        Ey_local(-1, y) = Ey_local(Ey_local.get_Nx() - 1, y); // СЃР»РµРІР°
+        Ey_local(Ey_local.get_Nx(), y) = Ey_local(0, y); // СЃРїСЂР°РІР°
 
-        Ez_local(-1, y) = Ez_local(Ez_local.get_Nx() - 1, y); // слева
-        Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // справа
+        Ez_local(-1, y) = Ez_local(Ez_local.get_Nx() - 1, y); // СЃР»РµРІР°
+        Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // СЃРїСЂР°РІР°
       }
-      Ex_local(-1, -1) = Ex_local(Ex_local.get_Nx() - 1, Ex_local.get_Ny() - 1); // левый нижний узел
-      Ex_local(-1, Ex_local.get_Ny()) = Ex_local(Ex_local.get_Nx() - 1, 0); // левый верхний узел
-      Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()) = Ex_local(0, 0); // правый верхний узел
-      *(Ex_local.data() + Ex_local.get_Nx() + 1) = Ex_local(0, Ex_local.get_Ny() - 1); // правый нижний узел
+      Ex_local(-1, -1) = Ex_local(Ex_local.get_Nx() - 1, Ex_local.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      Ex_local(-1, Ex_local.get_Ny()) = Ex_local(Ex_local.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()) = Ex_local(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      *(Ex_local.data() + Ex_local.get_Nx() + 1) = Ex_local(0, Ex_local.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-      Ey_local(-1, -1) = Ey_local(Ey_local.get_Nx() - 1, Ey_local.get_Ny() - 1); // левый нижний узел
-      Ey_local(-1, Ey_local.get_Ny()) = Ey_local(Ey_local.get_Nx() - 1, 0); // левый верхний узел
-      Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()) = Ey_local(0, 0); // правый верхний узел
-      *(Ey_local.data() + Ey_local.get_Nx() + 1) = Ey_local(0, Ey_local.get_Ny() - 1); // правый нижний узел
+      Ey_local(-1, -1) = Ey_local(Ey_local.get_Nx() - 1, Ey_local.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      Ey_local(-1, Ey_local.get_Ny()) = Ey_local(Ey_local.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()) = Ey_local(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      *(Ey_local.data() + Ey_local.get_Nx() + 1) = Ey_local(0, Ey_local.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-      Ez_local(-1, -1) = Ez_local(Ez_local.get_Nx() - 1, Ez_local.get_Ny() - 1); // левый нижний узел
-      Ez_local(-1, Ez_local.get_Ny()) = Ez_local(Ez_local.get_Nx() - 1, 0); // левый верхний узел
-      Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()) = Ez_local(0, 0); // правый верхний узел
-      *(Ez_local.data() + Ez_local.get_Nx() + 1) = Ez_local(0, Ez_local.get_Ny() - 1); // правый нижний узел
+      Ez_local(-1, -1) = Ez_local(Ez_local.get_Nx() - 1, Ez_local.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+      Ez_local(-1, Ez_local.get_Ny()) = Ez_local(Ez_local.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()) = Ez_local(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+      *(Ez_local.data() + Ez_local.get_Nx() + 1) = Ez_local(0, Ez_local.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
     }
 
-    // Синхронизация смежных строк (для 2-мерного случая)
+    // РЎРёРЅС…СЂРѕРЅРёР·Р°С†РёСЏ СЃРјРµР¶РЅС‹С… СЃС‚СЂРѕРє (РґР»СЏ 2-РјРµСЂРЅРѕРіРѕ СЃР»СѓС‡Р°СЏ)
     if (mpi_comm_size > 1)
     {
       if (rank != mpi_comm_size - 1 && rank != 0)
       {
         MPI_Sendrecv(Ex_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Ex_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          Ex_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Ey_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Ey_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          Ey_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Ez_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Ez_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          Ez_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
 
         MPI_Sendrecv(Ex_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Ex_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          Ex_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Ey_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Ey_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          Ey_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Ez_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Ez_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          Ez_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
       }
       else if (rank == 0)
       {
         MPI_Sendrecv(Ex_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Ex_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          Ex_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Ey_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Ey_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+          Ey_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Ez_local.data() + Nx_local * (Ny_local - 2), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
-          Ez_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-
-        //MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank, MPI_COMM_WORLD);
-        //MPI_Recv(Ex_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status);
-
-        //MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank, MPI_COMM_WORLD);
-        //MPI_Recv(Ey_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status);
-
-        //MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank, MPI_COMM_WORLD);
-        //MPI_Recv(Ez_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status);
+          Ez_local.data() + Nx_local * (Ny_local - 1), static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // СЃРІРµСЂС…Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
       }
       else // if (rank == mpi_comm_size - 1)
       {
         MPI_Sendrecv(Ex_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Ex_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          Ex_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Ey_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Ey_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
+          Ey_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
         MPI_Sendrecv(Ez_local.data() + Nx_local, static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank,
-          Ez_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-
-        //MPI_Recv(Ex_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status);
-        //MPI_Ssend(Ex_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank, MPI_COMM_WORLD);
-
-        //MPI_Recv(Ey_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status);
-        //MPI_Ssend(Ey_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank, MPI_COMM_WORLD);
-
-        //MPI_Recv(Ez_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status);
-        //MPI_Ssend(Ez_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank, MPI_COMM_WORLD);
+          Ez_local.data(), static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // СЃРЅРёР·Сѓ РїРѕР»СѓС‡РёР»-РѕС‚РїСЂР°РІРёР»
       }
     }
 
@@ -778,114 +788,37 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
           By_local(i, j, k) = By_local(i, j, k) + C * B_dt * ((Ez_local(i + 1, j, k) - Ez_local(i, j, k)) / dx /*- (Ex_local(i, j, k + 1) - Ex_local(i, j, k)) / dz*/);
           Bz_local(i, j, k) = Bz_local(i, j, k) + C * B_dt * ((Ex_local(i, j + 1, k) - Ex_local(i, j, k)) / dy - (Ey_local(i + 1, j, k) - Ey_local(i, j, k)) / dx);
         }
-    // Обновляю границу - верх 2-х мерной системы
-    //if (rank == 0 && mpi_comm_size != 1)
-    //{
-    //  // Получаю верхнюю строчку последнего процесса для синхронизации нулевой строчки нулевого процесса
-    //  // Замечание: здесь get_Nx() = Nx_local - 2
-    //  MPI_Recv(Bx_local.data() + 1, Bx_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу 
-    //  MPI_Recv(By_local.data() + 1, By_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу
-    //  MPI_Recv(Bz_local.data() + 1, Bz_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // снизу
-    //
-    //  MPI_Recv(Bx_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
-    //  MPI_Recv(By_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
-    //  MPI_Recv(Bz_local.data(), 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // левый нижний узел
-    //
-    //  MPI_Recv(Bx_local.data() + Bx_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
-    //  MPI_Recv(By_local.data() + By_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
-    //  MPI_Recv(Bz_local.data() + Bz_local.get_Nx() + 1, 1, MPI_DOUBLE, mpi_comm_size - 1, mpi_comm_size - 1, MPI_COMM_WORLD, &status); // правый нижний узел
-    //
-    //  MPI_Send(&Bx_local(0, 0), Bx_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
-    //  MPI_Send(&By_local(0, 0), By_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
-    //  MPI_Send(&Bz_local(0, 0), Bz_local.get_Nx(), MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // Верх последнего процесса
-    //
-    //  MPI_Send(&Bx_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
-    //  MPI_Send(&By_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
-    //  MPI_Send(&Bz_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // левый нижний угол (для левого врехнего угла посл. процесса)
-    //
-    //  MPI_Send(&Bx_local(Bx_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
-    //  MPI_Send(&By_local(By_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
-    //  MPI_Send(&Bz_local(Bz_local.get_Nx() - 1, -1), 1, MPI_DOUBLE, mpi_comm_size - 1, rank, MPI_COMM_WORLD); // правый нижний угол (для прав. верх. угла посл. процесса)
-    //}
-    //if (rank == mpi_comm_size - 1 && mpi_comm_size != 1)
-    //{
-    //  // Отправляю верхнюю строчку последнего процесса нулевому процессу для нулевой строчки
-    //
-    //  MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, Bx_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
-    //  MPI_Send(By_local.data() + Nx_local * (Ny_local - 2) + 1, By_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
-    //  MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, Bz_local.get_Nx(), MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // Низ нулевого процесса
-    //
-    //  MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
-    //  MPI_Send(By_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
-    //  MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // левый нижний узел нулевого процесса
-    //
-    //  MPI_Send(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-    //  MPI_Send(By_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-    //  MPI_Send(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE, 0, rank, MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-    //
-    //  MPI_Recv(&Bx_local(0, Bx_local.get_Ny() - 2), Bx_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-    //  MPI_Recv(&By_local(0, By_local.get_Ny() - 2), By_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-    //  MPI_Recv(&Bz_local(0, Bz_local.get_Ny() - 2), Bz_local.get_Nx(), MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // сверху (получение нулевой строки нулевого процесса)
-    //
-    //  MPI_Recv(&Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-    //  MPI_Recv(&By_local(By_local.get_Nx(), By_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-    //  MPI_Recv(&Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // правый верхний узел (получение из нулевого процесса)
-    //
-    //  MPI_Recv(&Bx_local(-1, Bx_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
-    //  MPI_Recv(&By_local(-1, By_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
-    //  MPI_Recv(&Bz_local(-1, Bz_local.get_Ny() - 1), 1, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status); // левый верхний узел (получение из нулевого процесса)
-    //}
-    //
-    //// Синхронизация смежных строк (для 2-мерного случая)
-    //if (mpi_comm_size > 1)
-    //{
-    //  if (rank != mpi_comm_size - 1 && rank != 0)
-    //  {
-    //    MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-    //      Bx_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-    //    MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-    //      By_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-    //    MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-    //      Bz_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-    //
-    //    MPI_Sendrecv(Bx_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-    //      Bx_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-    //    MPI_Sendrecv(By_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-    //      By_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-    //    MPI_Sendrecv(Bz_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-    //      Bz_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-    //  }
-    //  else if (rank == 0)
-    //  {
-    //    MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-    //      Bx_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-    //    MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-    //      By_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-    //    MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2), Nx_local, MPI_DOUBLE, rank + 1, rank,
-    //      Bz_local.data() + Nx_local * (Ny_local - 1), Nx_local, MPI_DOUBLE, rank + 1, rank + 1, MPI_COMM_WORLD, &status); // сверху получил-отправил
-    //  }
-    //  else // if (rank == mpi_comm_size - 1)
-    //  {
-    //    MPI_Sendrecv(Bx_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-    //      Bx_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-    //    MPI_Sendrecv(By_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-    //      By_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-    //    MPI_Sendrecv(Bz_local.data() + Nx_local, Nx_local, MPI_DOUBLE, rank - 1, rank,
-    //      Bz_local.data(), Nx_local, MPI_DOUBLE, rank - 1, rank - 1, MPI_COMM_WORLD, &status); // снизу получил-отправил
-    //  }
-    //}
   }
 
-  std::vector<double> proc_buffer_Ex(Nx_local * (Ny_local - 1));
-  std::vector<double> proc_buffer_Ey(Nx_local * (Ny_local - 1));
-  std::vector<double> proc_buffer_Ez(Nx_local * (Ny_local - 1));
+  size_t localShiftedSize = 0;
+  if (rank == 0 || rank == mpi_comm_size - 1)
+  {
+    localShiftedSize = Nx_local * (Ny_local - 1);
+    std::cout << "localShiftedSize(0) = " << localShiftedSize << std::endl;
+  }
 
-  std::vector<double> proc_buffer_Bx(Nx_local * (Ny_local - 1));
-  std::vector<double> proc_buffer_By(Nx_local * (Ny_local - 1));
-  std::vector<double> proc_buffer_Bz(Nx_local * (Ny_local - 1));
+  else
+  {
+    localShiftedSize = Nx_local * (Ny_local - 2);
+    std::cout << "localShiftedSize(drugie) = " << localShiftedSize << std::endl;
+  }
+  std::vector<double> proc_buffer_Ex(localShiftedSize);
+  std::vector<double> proc_buffer_Ey(localShiftedSize);
+  std::vector<double> proc_buffer_Ez(localShiftedSize);
+                            
+  std::vector<double> proc_buffer_Bx(localShiftedSize);
+  std::vector<double> proc_buffer_By(localShiftedSize);
+  std::vector<double> proc_buffer_Bz(localShiftedSize);
 
+  //std::vector<double> proc_buffer_Ex(Nx_local* (Ny_local - 1));
+  //std::vector<double> proc_buffer_Ey(Nx_local* (Ny_local - 1));
+  //std::vector<double> proc_buffer_Ez(Nx_local* (Ny_local - 1));
+  //
+  //std::vector<double> proc_buffer_Bx(Nx_local* (Ny_local - 1));
+  //std::vector<double> proc_buffer_By(Nx_local* (Ny_local - 1));
+  //std::vector<double> proc_buffer_Bz(Nx_local* (Ny_local - 1));
 
-  // Gather для нулевого процесса
+  // Gather РґР»СЏ РЅСѓР»РµРІРѕРіРѕ РїСЂРѕС†РµСЃСЃР°
   if (rank == 0)
   {
     //memcpy(Ex.data(), Ex_local.data(), proc_buffer_Ex.size() * sizeof(double));
@@ -908,6 +841,16 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
     //  std::cout << "Bx_local[" << i << "]" << " = " << *(Bx_local.data() + i) << std::endl;
     //}
   }
+  //else if (rank == mpi_comm_size - 1)
+  //{
+  //  memcpy(proc_buffer_Ex.data(), Ex_local.data() + Nx_local, proc_buffer_Ex.size() * sizeof(double));
+  //  memcpy(proc_buffer_Ey.data(), Ey_local.data() + Nx_local, proc_buffer_Ey.size() * sizeof(double));
+  //  memcpy(proc_buffer_Ez.data(), Ez_local.data() + Nx_local, proc_buffer_Ez.size() * sizeof(double));
+  //                                              
+  //  memcpy(proc_buffer_Bx.data(), Bx_local.data() + Nx_local, proc_buffer_Bx.size() * sizeof(double));
+  //  memcpy(proc_buffer_By.data(), By_local.data() + Nx_local, proc_buffer_By.size() * sizeof(double));
+  //  memcpy(proc_buffer_Bz.data(), Bz_local.data() + Nx_local, proc_buffer_Bz.size() * sizeof(double));
+  //}
   else
   {
     memcpy(proc_buffer_Ex.data(), Ex_local.data() + Nx_local, proc_buffer_Ex.size() * sizeof(double));
@@ -925,15 +868,25 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
 
   }
 
+  std::vector<int> razmer{ 6 * 12, 5 * 12, 5 * 12};
+  std::vector<int> displs_Gather{ 0, 60, 96 };
+  MPI_Gatherv(proc_buffer_Ex.data(), localShiftedSize, MPI_DOUBLE, Ex.data(), razmer.data(), displs_Gather.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gatherv(proc_buffer_Ey.data(), localShiftedSize, MPI_DOUBLE, Ey.data(), razmer.data(), displs_Gather.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gatherv(proc_buffer_Ez.data(), localShiftedSize, MPI_DOUBLE, Ez.data(), razmer.data(), displs_Gather.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    MPI_Gather(proc_buffer_Ex.data(), static_cast<int>(proc_buffer_Ex.size()), MPI_DOUBLE, Ex.data(), static_cast<int>(proc_buffer_Ex.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Gather(proc_buffer_Ey.data(), static_cast<int>(proc_buffer_Ey.size()), MPI_DOUBLE, Ey.data(), static_cast<int>(proc_buffer_Ey.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Gather(proc_buffer_Ez.data(), static_cast<int>(proc_buffer_Ez.size()), MPI_DOUBLE, Ez.data(), static_cast<int>(proc_buffer_Ez.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gatherv(proc_buffer_Bx.data(), localShiftedSize, MPI_DOUBLE, Bx.data(), razmer.data(), displs_Gather.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gatherv(proc_buffer_By.data(), localShiftedSize, MPI_DOUBLE, By.data(), razmer.data(), displs_Gather.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  MPI_Gatherv(proc_buffer_Bz.data(), localShiftedSize, MPI_DOUBLE, Bz.data(), razmer.data(), displs_Gather.data(), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-    MPI_Gather(proc_buffer_Bx.data(), static_cast<int>(proc_buffer_Bx.size()), MPI_DOUBLE, Bx.data(), static_cast<int>(proc_buffer_Bx.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Gather(proc_buffer_By.data(), static_cast<int>(proc_buffer_By.size()), MPI_DOUBLE, By.data(), static_cast<int>(proc_buffer_By.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-    MPI_Gather(proc_buffer_Bz.data(), static_cast<int>(proc_buffer_Bz.size()), MPI_DOUBLE, Bz.data(), static_cast<int>(proc_buffer_Bz.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+ // MPI_Gather(proc_buffer_Ex.data(), static_cast<int>(proc_buffer_Ex.size()), MPI_DOUBLE, Ex.data(), static_cast<int>(proc_buffer_Ex.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+ // MPI_Gather(proc_buffer_Ey.data(), static_cast<int>(proc_buffer_Ey.size()), MPI_DOUBLE, Ey.data(), static_cast<int>(proc_buffer_Ey.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+ // MPI_Gather(proc_buffer_Ez.data(), static_cast<int>(proc_buffer_Ez.size()), MPI_DOUBLE, Ez.data(), static_cast<int>(proc_buffer_Ez.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+ //
+ // MPI_Gather(proc_buffer_Bx.data(), static_cast<int>(proc_buffer_Bx.size()), MPI_DOUBLE, Bx.data(), static_cast<int>(proc_buffer_Bx.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+ // MPI_Gather(proc_buffer_By.data(), static_cast<int>(proc_buffer_By.size()), MPI_DOUBLE, By.data(), static_cast<int>(proc_buffer_By.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+ // MPI_Gather(proc_buffer_Bz.data(), static_cast<int>(proc_buffer_Bz.size()), MPI_DOUBLE, Bz.data(), static_cast<int>(proc_buffer_Bz.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
   MPI_Barrier(MPI_COMM_WORLD);
+  std::cout << "We are HERE!\n" << std::endl;
   //if (rank == 0)
   //{
   //  for (int i = 0; i < Bx.size(); ++i)
@@ -967,43 +920,43 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
   //        Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
   //        //std::cout << "i = " << i << " j = " << j << " k = " << k << '\n';
   //      }
-  //  // Обновляю границу - верх 2-х мерной системы
+  //  // РћР±РЅРѕРІР»СЏСЋ РіСЂР°РЅРёС†Сѓ - РІРµСЂС… 2-С… РјРµСЂРЅРѕР№ СЃРёСЃС‚РµРјС‹
   //  for (int64_t x = 0; x < Bx.get_Nx(); ++x)
   //  {
-  //    *(Bx.data() + x + 1) = Bx(x, Bx.get_Ny() - 1); // снизу
-  //    Bx(x, Bx.get_Ny()) = Bx(x, 0); // сверху
+  //    *(Bx.data() + x + 1) = Bx(x, Bx.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    Bx(x, Bx.get_Ny()) = Bx(x, 0); // СЃРІРµСЂС…Сѓ
 
-  //    *(By.data() + x + 1) = By(x, By.get_Ny() - 1); // снизу
-  //    By(x, By.get_Ny() - 1) = By(x, 0); // сверху
+  //    *(By.data() + x + 1) = By(x, By.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    By(x, By.get_Ny() - 1) = By(x, 0); // СЃРІРµСЂС…Сѓ
 
-  //    *(Bz.data() + x + 1) = Bz(x, Bz.get_Ny() - 1); // снизу
-  //    Bz(x, Bz.get_Ny()) = Bz(x, 0); // сверху
+  //    *(Bz.data() + x + 1) = Bz(x, Bz.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    Bz(x, Bz.get_Ny()) = Bz(x, 0); // СЃРІРµСЂС…Сѓ
   //  }
   //  for (int64_t y = 0; y < Bx.get_Ny(); ++y)
   //  {
-  //    Bx(-1, y) = Bx(Bx.get_Nx() - 1, y); // слева
-  //    Bx(Bx.get_Nx(), y) = Bx(0, y); // справа
+  //    Bx(-1, y) = Bx(Bx.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    Bx(Bx.get_Nx(), y) = Bx(0, y); // СЃРїСЂР°РІР°
 
-  //    By(-1, y) = By(By.get_Nx() - 1, y); // слева
-  //    By(By.get_Nx(), y) = By(0, y); // справа
+  //    By(-1, y) = By(By.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    By(By.get_Nx(), y) = By(0, y); // СЃРїСЂР°РІР°
 
-  //    Bz(-1, y) = Bz(Bz.get_Nx() - 1, y); // слева
-  //    Bz(Bz.get_Nx(), y) = Bz(0, y); // справа
+  //    Bz(-1, y) = Bz(Bz.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    Bz(Bz.get_Nx(), y) = Bz(0, y); // СЃРїСЂР°РІР°
   //  }
-  //  Bx(-1, -1) = Bx(Bx.get_Nx() - 1, Bx.get_Ny() - 1); // левый нижний узел
-  //  Bx(-1, Bx.get_Ny()) = Bx(Bx.get_Nx() - 1, 0); // левый верхний узел
-  //  Bx(Bx.get_Nx(), Bx.get_Ny()) = Bx(0, 0); // правый верхний узел
-  //  *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // правый нижний узел
+  //  Bx(-1, -1) = Bx(Bx.get_Nx() - 1, Bx.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  Bx(-1, Bx.get_Ny()) = Bx(Bx.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  Bx(Bx.get_Nx(), Bx.get_Ny()) = Bx(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-  //  By(-1, -1) = By(By.get_Nx() - 1, By.get_Ny() - 1); // левый нижний узел
-  //  By(-1, By.get_Ny()) = By(By.get_Nx() - 1, 0); // левый верхний узел
-  //  By(By.get_Nx(), By.get_Ny()) = By(0, 0); // правый верхний узел
-  //  *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // правый нижний узел
+  //  By(-1, -1) = By(By.get_Nx() - 1, By.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  By(-1, By.get_Ny()) = By(By.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  By(By.get_Nx(), By.get_Ny()) = By(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-  //  Bz(-1, -1) = Bz(Bz.get_Nx() - 1, Bz.get_Ny() - 1); // левый нижний узел
-  //  Bz(-1, Bz.get_Ny()) = Bz(Bz.get_Nx() - 1, 0); // левый верхний узел
-  //  Bz(Bz.get_Nx(), Bz.get_Ny()) = Bz(0, 0); // правый верхний узел
-  //  *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // правый нижний узел
+  //  Bz(-1, -1) = Bz(Bz.get_Nx() - 1, Bz.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  Bz(-1, Bz.get_Ny()) = Bz(Bz.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  Bz(Bz.get_Nx(), Bz.get_Ny()) = Bz(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
 
   //  for (i = 0ull; i < Nx; ++i)
@@ -1014,43 +967,43 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
   //        Ey(i, j, k) = Ey(i, j, k) + C * E_dt * (/*(Bx(i, j, k) - Bx(i, j, k - 1)) / dz*/ - (Bz(i, j, k) - Bz(i - 1, j, k)) / dx);
   //        Ez(i, j, k) = Ez(i, j, k) + C * E_dt * ((By(i, j, k) - By(i - 1, j, k)) / dx - (Bx(i, j, k) - Bx(i, j - 1, k)) / dy);
   //      }
-  //  // Обновляю границу - верх 2-х мерной системы
+  //  // РћР±РЅРѕРІР»СЏСЋ РіСЂР°РЅРёС†Сѓ - РІРµСЂС… 2-С… РјРµСЂРЅРѕР№ СЃРёСЃС‚РµРјС‹
   //  for (int64_t x = 0; x < Ex.get_Nx(); ++x)
   //  {
-  //    *(Ex.data() + x + 1) = Ex(x, Ex.get_Ny() - 1); // снизу
-  //    Ex(x, Ex.get_Ny()) = Ex(x, 0); // сверху
+  //    *(Ex.data() + x + 1) = Ex(x, Ex.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    Ex(x, Ex.get_Ny()) = Ex(x, 0); // СЃРІРµСЂС…Сѓ
 
-  //    *(Ey.data() + x + 1) = Ey(x, Ey.get_Ny() - 1); // снизу
-  //    Ey(x, Ey.get_Ny()) = Ey(x, 0); // сверху
+  //    *(Ey.data() + x + 1) = Ey(x, Ey.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    Ey(x, Ey.get_Ny()) = Ey(x, 0); // СЃРІРµСЂС…Сѓ
 
-  //    *(Ez.data() + x + 1) = Ez(x, Ez.get_Ny() - 1); // снизу
-  //    Ez(x, Ez.get_Ny()) = Ez(x, 0); // сверху
+  //    *(Ez.data() + x + 1) = Ez(x, Ez.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    Ez(x, Ez.get_Ny()) = Ez(x, 0); // СЃРІРµСЂС…Сѓ
   //  }
   //  for (int64_t y = 0; y < Ex.get_Ny(); ++y)
   //  {
-  //    Ex(-1, y) = Ex(Ex.get_Nx() - 1, y); // слева
-  //    Ex(Ex.get_Nx(), y) = Ex(0, y); // справа
+  //    Ex(-1, y) = Ex(Ex.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    Ex(Ex.get_Nx(), y) = Ex(0, y); // СЃРїСЂР°РІР°
 
-  //    Ey(-1, y) = Ey(Ey.get_Nx() - 1, y); // слева
-  //    Ey(Ey.get_Nx(), y) = Ey(0, y); // справа
+  //    Ey(-1, y) = Ey(Ey.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    Ey(Ey.get_Nx(), y) = Ey(0, y); // СЃРїСЂР°РІР°
 
-  //    Ez(-1, y) = Ez(Ez.get_Nx() - 1, y); // слева
-  //    Ez(Ez.get_Nx(), y) = Ez(0, y); // справа
+  //    Ez(-1, y) = Ez(Ez.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    Ez(Ez.get_Nx(), y) = Ez(0, y); // СЃРїСЂР°РІР°
   //  }
-  //  Ex(-1, -1) = Ex(Ex.get_Nx() - 1, Ex.get_Ny() - 1); // левый нижний узел
-  //  Ex(-1, Ex.get_Ny()) = Ex(Ex.get_Nx() - 1, 0); // левый верхний узел
-  //  Ex(Ex.get_Nx(), Ex.get_Ny()) = Ex(0, 0); // правый верхний узел
-  //  *(Ex.data() + Ex.get_Nx() + 1) = Ex(0, Ex.get_Ny() - 1); // правый нижний узел
+  //  Ex(-1, -1) = Ex(Ex.get_Nx() - 1, Ex.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  Ex(-1, Ex.get_Ny()) = Ex(Ex.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  Ex(Ex.get_Nx(), Ex.get_Ny()) = Ex(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(Ex.data() + Ex.get_Nx() + 1) = Ex(0, Ex.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-  //  Ey(-1, -1) = Ey(Ey.get_Nx() - 1, Ey.get_Ny() - 1); // левый нижний узел
-  //  Ey(-1, Ey.get_Ny()) = Ey(Ey.get_Nx() - 1, 0); // левый верхний узел
-  //  Ey(Ey.get_Nx(), Ey.get_Ny()) = Ey(0, 0); // правый верхний узел
-  //  *(Ey.data() + Ey.get_Nx() + 1) = Ey(0, Ey.get_Ny() - 1); // правый нижний узел
+  //  Ey(-1, -1) = Ey(Ey.get_Nx() - 1, Ey.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  Ey(-1, Ey.get_Ny()) = Ey(Ey.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  Ey(Ey.get_Nx(), Ey.get_Ny()) = Ey(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(Ey.data() + Ey.get_Nx() + 1) = Ey(0, Ey.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-  //  Ez(-1, -1) = Ez(Ez.get_Nx() - 1, Ez.get_Ny() - 1); // левый нижний узел
-  //  Ez(-1, Ez.get_Ny()) = Ez(Ez.get_Nx() - 1, 0); // левый верхний узел
-  //  Ez(Ez.get_Nx(), Ez.get_Ny()) = Ez(0, 0); // правый верхний узел
-  //  *(Ez.data() + Ez.get_Nx() + 1) = Ez(0, Ez.get_Ny() - 1); // правый нижний узел
+  //  Ez(-1, -1) = Ez(Ez.get_Nx() - 1, Ez.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  Ez(-1, Ez.get_Ny()) = Ez(Ez.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  Ez(Ez.get_Nx(), Ez.get_Ny()) = Ez(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(Ez.data() + Ez.get_Nx() + 1) = Ez(0, Ez.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
 
   //  for (i = 0ull; i < Nx; ++i)
@@ -1061,43 +1014,43 @@ void FDTD::FDTD::shifted_field_update(const int64_t t)
   //        By(i, j, k) = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx /*- (Ex(i, j, k + 1) - Ex(i, j, k)) / dz*/);
   //        Bz(i, j, k) = Bz(i, j, k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
   //      }
-  //  // Обновляю границу - верх 2-х мерной системы
+  //  // РћР±РЅРѕРІР»СЏСЋ РіСЂР°РЅРёС†Сѓ - РІРµСЂС… 2-С… РјРµСЂРЅРѕР№ СЃРёСЃС‚РµРјС‹
   //  for (int64_t x = 0; x < Bx.get_Nx(); ++x)
   //  {
-  //    *(Bx.data() + x + 1) = Bx(x, Bx.get_Ny() - 1); // снизу
-  //    Bx(x, Bx.get_Ny()) = Bx(x, 0); // сверху
+  //    *(Bx.data() + x + 1) = Bx(x, Bx.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    Bx(x, Bx.get_Ny()) = Bx(x, 0); // СЃРІРµСЂС…Сѓ
 
-  //    *(By.data() + x + 1) = By(x, By.get_Ny() - 1); // снизу
-  //    By(x, By.get_Ny()) = By(x, 0); // сверху
+  //    *(By.data() + x + 1) = By(x, By.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    By(x, By.get_Ny()) = By(x, 0); // СЃРІРµСЂС…Сѓ
 
-  //    *(Bz.data() + x + 1) = Bz(x, Bz.get_Ny() - 1); // снизу
-  //    Bz(x, Bz.get_Ny()) = Bz(x, 0); // сверху
+  //    *(Bz.data() + x + 1) = Bz(x, Bz.get_Ny() - 1); // СЃРЅРёР·Сѓ
+  //    Bz(x, Bz.get_Ny()) = Bz(x, 0); // СЃРІРµСЂС…Сѓ
   //  }
   //  for (int64_t y = 0; y < Bx.get_Ny(); ++y)
   //  {
-  //    Bx(-1, y) = Bx(Bx.get_Nx() - 1, y); // слева
-  //    Bx(Bx.get_Nx(), y) = Bx(0, y); // справа
+  //    Bx(-1, y) = Bx(Bx.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    Bx(Bx.get_Nx(), y) = Bx(0, y); // СЃРїСЂР°РІР°
 
-  //    By(-1, y) = By(By.get_Nx() - 1, y); // слева
-  //    By(By.get_Nx(), y) = By(0, y); // справа
+  //    By(-1, y) = By(By.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    By(By.get_Nx(), y) = By(0, y); // СЃРїСЂР°РІР°
 
-  //    Bz(-1, y) = Bz(Bz.get_Nx() - 1, y); // слева
-  //    Bz(Bz.get_Nx(), y) = Bz(0, y); // справа
+  //    Bz(-1, y) = Bz(Bz.get_Nx() - 1, y); // СЃР»РµРІР°
+  //    Bz(Bz.get_Nx(), y) = Bz(0, y); // СЃРїСЂР°РІР°
   //  }
-  //  Bx(-1, -1) = Bx(Bx.get_Nx() - 1, Bx.get_Ny() - 1); // левый нижний узел
-  //  Bx(-1, Bx.get_Ny()) = Bx(Bx.get_Nx() - 1, 0); // левый верхний узел
-  //  Bx(Bx.get_Nx(), Bx.get_Ny()) = Bx(0, 0); // правый верхний узел
-  //  *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // правый нижний узел
+  //  Bx(-1, -1) = Bx(Bx.get_Nx() - 1, Bx.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  Bx(-1, Bx.get_Ny()) = Bx(Bx.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  Bx(Bx.get_Nx(), Bx.get_Ny()) = Bx(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-  //  By(-1, -1) = By(By.get_Nx() - 1, By.get_Ny() - 1); // левый нижний узел
-  //  By(-1, By.get_Ny()) = By(By.get_Nx() - 1, 0); // левый верхний узел
-  //  By(By.get_Nx(), By.get_Ny()) = By(0, 0); // правый верхний узел
-  //  *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // правый нижний узел
+  //  By(-1, -1) = By(By.get_Nx() - 1, By.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  By(-1, By.get_Ny()) = By(By.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  By(By.get_Nx(), By.get_Ny()) = By(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
 
-  //  Bz(-1, -1) = Bz(Bz.get_Nx() - 1, Bz.get_Ny() - 1); // левый нижний узел
-  //  Bz(-1, Bz.get_Ny()) = Bz(Bz.get_Nx() - 1, 0); // левый верхний узел
-  //  Bz(Bz.get_Nx(), Bz.get_Ny()) = Bz(0, 0); // правый верхний узел
-  //  *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // правый нижний узел
+  //  Bz(-1, -1) = Bz(Bz.get_Nx() - 1, Bz.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
+  //  Bz(-1, Bz.get_Ny()) = Bz(Bz.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  Bz(Bz.get_Nx(), Bz.get_Ny()) = Bz(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓР·РµР»
+  //  *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓР·РµР»
   //}
 
 //#endif // MPI
