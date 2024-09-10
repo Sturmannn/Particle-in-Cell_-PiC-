@@ -22,7 +22,11 @@ gtest::Test_obj& gtest::Test_obj::operator=(const Test_obj& other_test_field)
 {
   if (this != &other_test_field)
   {
-    this->gtest::Test_obj::Test_obj(other_test_field);
+    // this->gtest::Test_obj::Test_obj(other_test_field);
+    field = other_test_field.field;
+    analytical_field = other_test_field.analytical_field;
+    E = other_test_field.E;
+    B = other_test_field.B;
   }
   return *this;
 }
@@ -47,6 +51,8 @@ gtest::Test_obj& gtest::Test_obj::operator=(Test_obj&& other_test_field) noexcep
 
 void gtest::Test_obj::analytical_default_solution(const Component E, const Component B, const double t, const Shift _shift)
 {
+  Courant_condition_check(_shift);
+  // double coeff = (_shift == Shift::shifted) ? 0.5 : 1.0;
   double coeff = (_shift == Shift::shifted) ? 0.5 : 0.0;
 
   Field::ComputingField& Ex = analytical_field.get_Ex();
@@ -84,7 +90,8 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
 
   
   auto helper_set_data = [&] \
-    (std::pair<double, double>&_ai_bi, double delta, double _sign) {
+    (std::pair<double, double>&&_ai_bi, double delta, double _sign) {
+    // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
     ai_bi = _ai_bi;
     coordinate = ai_bi.first;
     delta_coordinate = delta;
@@ -127,9 +134,9 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     default: break;
     }
 
-    for (axis_1_counter = 0ull; axis_1_counter < std::get<2>(axis_1); ++(axis_1_counter), coordinate += delta_coordinate)
-      for (axis_2_counter = 0ull; axis_2_counter < std::get<2>(axis_2); ++(axis_2_counter))
-        for (axis_3_counter = 0ull;  axis_3_counter < std::get<2>(axis_3); ++(axis_3_counter))
+    for (axis_1_counter = 0; axis_1_counter < std::get<2>(axis_1); ++(axis_1_counter), coordinate += delta_coordinate)
+      for (axis_2_counter = 0; axis_2_counter < std::get<2>(axis_2); ++(axis_2_counter))
+        for (axis_3_counter = 0;  axis_3_counter < std::get<2>(axis_3); ++(axis_3_counter))
         {
           Ex(*i, *j, *k) = Ey(*i, *j, *k) = Ez(*i, *j, *k) = Bx(*i, *j, *k) = By(*i, *j, *k) = Bz(*i, *j, *k) = 0.0;
 
@@ -141,36 +148,38 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
               (ai_bi.second - ai_bi.first));
           //std::cout << "i = " << *i << " j = " << *j << " k = " << *k << '\n';
         }
+        
 
-    // Обновляю границу - верх 2-х мерной системы
-    for (int64_t x = 0; x < E_field.get_Nx(); ++x)
-    {
-      *(E_field.data() + x + 1) = E_field(x, E_field.get_Ny() - 1); // снизу
-      E_field(x, E_field.get_Ny()) = E_field(x, 0); // сверху
-
-      *(B_field.data() + x + 1) = B_field(x, B_field.get_Ny() - 1); // снизу
-      B_field(x, B_field.get_Ny()) = B_field(x, 0); // сверху
-    }
-    for (int64_t y = 0; y < E_field.get_Ny(); ++y)
-    {
-      E_field(-1, y) = E_field(E_field.get_Nx() - 1, y); // слева
-      E_field(E_field.get_Nx(), y) = E_field(0, y); // справа
-
-      B_field(-1, y) = B_field(B_field.get_Nx() - 1, y); // слева
-      B_field(B_field.get_Nx(), y) = B_field(0, y); // справа
-    }
-    E_field(-1, -1) = E_field(E_field.get_Nx() - 1, E_field.get_Ny() - 1); // левый нижний узел
-    E_field(-1, E_field.get_Ny()) = E_field(E_field.get_Nx() - 1, 0); // левый верхний узел
-    E_field(E_field.get_Nx(), E_field.get_Ny()) = E_field(0, 0); // правый верхний узел
-    *(E_field.data() + E_field.get_Nx() + 1) = E_field(0, E_field.get_Ny() - 1); // правый нижний узел
-
-    B_field(-1, -1) = B_field(B_field.get_Nx() - 1, B_field.get_Ny() - 1); // левый нижний узел
-    B_field(-1, B_field.get_Ny()) = B_field(B_field.get_Nx() - 1, 0); // левый верхний узел
-    B_field(B_field.get_Nx(), B_field.get_Ny()) = B_field(0, 0); // правый верхний узел
-    *(B_field.data() + B_field.get_Nx() + 1) = B_field(0, B_field.get_Ny() - 1); // правый нижний узел
+    // // РћР±РЅРѕРІР»СЏСЋ РіСЂР°РЅРёС†Сѓ - РІРµСЂС… 2-РјРµСЂРЅРѕР№ СЃРёСЃС‚РµРјС‹
+    // for (int64_t x = 0; x < E_field.get_Nx(); ++x)
+    // {
+    //   *(E_field.data() + x + 1) = E_field(x, E_field.get_Ny() - 1); // СЃРЅРёР·Сѓ
+    //   E_field(x, E_field.get_Ny()) = E_field(x, 0); // СЃРІРµСЂС…Сѓ
+    //
+    //   *(B_field.data() + x + 1) = B_field(x, B_field.get_Ny() - 1); // СЃРЅРёР·Сѓ
+    //   B_field(x, B_field.get_Ny()) = B_field(x, 0); // СЃРІРµСЂС…Сѓ
+    // }
+    // for (int64_t y = 0; y < E_field.get_Ny(); ++y)
+    // {
+    //   E_field(-1, y) = E_field(E_field.get_Nx() - 1, y); // СЃР»РµРІР°
+    //   E_field(E_field.get_Nx(), y) = E_field(0, y); // СЃРїСЂР°РІР°
+    //
+    //   B_field(-1, y) = B_field(B_field.get_Nx() - 1, y); // СЃР»РµРІР°
+    //   B_field(B_field.get_Nx(), y) = B_field(0, y); // СЃРїСЂР°РІР°
+    // }
+    // E_field(-1, -1) = E_field(E_field.get_Nx() - 1, E_field.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР»
+    // E_field(-1, E_field.get_Ny()) = E_field(E_field.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»
+    // E_field(E_field.get_Nx(), E_field.get_Ny()) = E_field(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»
+    // *(E_field.data() + E_field.get_Nx() + 1) = E_field(0, E_field.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР»
+    //
+    // B_field(-1, -1) = B_field(B_field.get_Nx() - 1, B_field.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР»
+    // B_field(-1, B_field.get_Ny()) = B_field(B_field.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»
+    // B_field(B_field.get_Nx(), B_field.get_Ny()) = B_field(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»
+    // *(B_field.data() + B_field.get_Nx() + 1) = B_field(0, B_field.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР»
   };
 
-  auto set_computational_data = [this, &helper_set_data, &loop_function, &E, &B]() {
+  // auto set_computational_data = [this, &helper_set_data, &loop_function, &E, &B]() {
+  auto set_computational_data = [&]() {
     // OX
     if (E == Component::Ey && B == Component::Bz)
     {
@@ -225,6 +234,7 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
   };
   
   set_computational_data();
+  this->get_analytical_field().boundary_synchronization();
 }
 
 void gtest::Test_obj::numerical_solution(const double t, const Shift _shift)
@@ -239,13 +249,28 @@ void gtest::Test_obj::numerical_solution(const int64_t t, const Shift _shift)
   (_shift == Shift::shifted) ? field.shifted_field_update(t) : field.field_update(t);
 }
 
+double gtest::Test_obj::get_delta_space(void) const
+{
+  Axis axis = field.get_axis(E, B);
+  switch (axis)
+  {
+  case Axis::Ox: return field.get_dx();
+  case Axis::Oy: return field.get_dy();
+  case Axis::Oz: return field.get_dz();
+  default:
+    std::cout << "\nGet delta space: Error! Wrong axis!\n";
+    exit(-1);
+  }
+  return -1.0; // Error code 
+}
+
 double gtest::Test_obj::get_global_err(const Component component)
 {
   auto get_err = [this](Field::ComputingField& numerical_field, Field::ComputingField& analytical_field) {
     double max_err = 0.0;
-    for (int64_t i = 0ull; i < field.get_Nx(); ++i)
-      for (int64_t j = 0ull; j < field.get_Ny(); ++j)
-        for (int64_t k = 0ull; k < field.get_Nz(); ++k)
+    for (int64_t i = 0; i < field.get_Nx(); ++i)
+      for (int64_t j = 0; j < field.get_Ny(); ++j)
+        for (int64_t k = 0; k < field.get_Nz(); ++k)
           max_err = std::max(max_err, fabs(numerical_field(i, j, k) - analytical_field(i, j, k)));
     
     return max_err;
@@ -274,6 +299,8 @@ double gtest::Test_obj::get_global_err(const Component component)
     std::cout << "\nGet global error: Error! Wrong component!\n";
     exit(-1);
   }
+  double error = 0.0;
+  return error;
 }
 
 void gtest::Test_obj::print_convergence(Test_obj& other_test)
@@ -335,10 +362,11 @@ void gtest::Test_obj::Courant_condition_check(const Shift _shift) const noexcept
 
 void gtest::Test_obj::set_default_field(const Component E, const Component B, const Shift _shift)
 {
-  std::pair<double, double>ay_by = field.get_ay_by();
+  //std::pair<double, double> ay_by = field.get_ay_by();
 
-  double y = ay_by.first;
+  //double y = ay_by.first;
   double coeff = (_shift == Shift::shifted) ? 0.5 : 0.0;
+  // double coeff = (_shift == Shift::shifted) ? 0.5 : 1.0;
 
   Field::ComputingField& Ex = field.get_Ex();
   Field::ComputingField& Ey = field.get_Ey();
@@ -375,7 +403,8 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
 
 
   auto helper_set_data = [&] \
-    (std::pair<double, double>&_ai_bi, double delta, double _sign) {
+    (std::pair<double, double>&&_ai_bi, double delta, double _sign) {
+    // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
     ai_bi = _ai_bi;
     coordinate = ai_bi.first;
     delta_coordinate = delta;
@@ -427,33 +456,57 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
             sin(2.0 * PI * (coordinate + delta_coordinate * coeff - ai_bi.first) /
               (ai_bi.second - ai_bi.first));
         }
-
-    // Обновляю границу - верх 2-х мерной системы
-    for (int64_t x = 0; x < E_field.get_Nx(); ++x)
-    {
-      *(E_field.data() + x + 1) = E_field(x, E_field.get_Ny() - 1); // снизу
-      E_field(x, E_field.get_Ny()) = E_field(x, 0); // сверху
-
-      *(B_field.data() + x + 1) = B_field(x, B_field.get_Ny() - 1); // снизу
-      B_field(x, B_field.get_Ny()) = B_field(x, 0); // сверху
-    }
-    for (int64_t y = 0; y < E_field.get_Ny(); ++y)
-    {
-      E_field(-1, y) = E_field(E_field.get_Nx() - 1, y); // слева
-      E_field(E_field.get_Nx(), y) = E_field(0, y); // справа
-
-      B_field(-1, y) = B_field(B_field.get_Nx() - 1, y); // слева
-      B_field(B_field.get_Nx(), y) = B_field(0, y); // справа
-    }
-    E_field(-1, -1) = E_field(E_field.get_Nx() - 1, E_field.get_Ny() - 1); // левый нижний узел
-    E_field(-1, E_field.get_Ny()) = E_field(E_field.get_Nx() - 1, 0); // левый верхний узел
-    E_field(E_field.get_Nx(), E_field.get_Ny()) = E_field(0, 0); // правый верхний узел
-    *(E_field.data() + E_field.get_Nx() + 1) = E_field(0, E_field.get_Ny() - 1); // правый нижний узел
-
-    B_field(-1, -1) = B_field(B_field.get_Nx() - 1, B_field.get_Ny() - 1); // левый нижний узел
-    B_field(-1, B_field.get_Ny()) = B_field(B_field.get_Nx() - 1, 0); // левый верхний узел
-    B_field(B_field.get_Nx(), B_field.get_Ny()) = B_field(0, 0); // правый верхний узел
-    *(B_field.data() + B_field.get_Nx() + 1) = B_field(0, B_field.get_Ny() - 1); // правый нижний узел
+  this->get_field().boundary_synchronization();
+    // // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ - пїЅпїЅпїЅпїЅ 2-пїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+    // for (int64_t x = 0; x < E_field.get_Nx(); ++x)
+    // {
+    //   *(E_field.data() + x + 1) = E_field(x, E_field.get_Ny() - 1); // пїЅпїЅпїЅпїЅпїЅ
+    //   E_field(x, E_field.get_Ny()) = E_field(x, 0); // пїЅпїЅпїЅпїЅпїЅпїЅ
+    //
+    //   *(B_field.data() + x + 1) = B_field(x, B_field.get_Ny() - 1); // пїЅпїЅпїЅпїЅпїЅ
+    //   B_field(x, B_field.get_Ny()) = B_field(x, 0); // пїЅпїЅпїЅпїЅпїЅпїЅ
+    // }
+    // for (int64_t y = 0; y < E_field.get_Ny(); ++y)
+    // {
+    //   E_field(-1, y) = E_field(E_field.get_Nx() - 1, y); // пїЅпїЅпїЅпїЅпїЅ
+    //   E_field(E_field.get_Nx(), y) = E_field(0, y); // пїЅпїЅпїЅпїЅпїЅпїЅ
+    //
+    //   B_field(-1, y) = B_field(B_field.get_Nx() - 1, y); // пїЅпїЅпїЅпїЅпїЅ
+    //   B_field(B_field.get_Nx(), y) = B_field(0, y); // пїЅпїЅпїЅпїЅпїЅпїЅ
+    // }
+    // E_field(-1, -1) = E_field(E_field.get_Nx() - 1, E_field.get_Ny() - 1); // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+    // E_field(-1, E_field.get_Ny()) = E_field(E_field.get_Nx() - 1, 0); // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+    // E_field(E_field.get_Nx(), E_field.get_Ny()) = E_field(0, 0); // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+    // *(E_field.data() + E_field.get_Nx() + 1) = E_field(0, E_field.get_Ny() - 1); // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+    //
+    // B_field(-1, -1) = B_field(B_field.get_Nx() - 1, B_field.get_Ny() - 1); // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+    // B_field(-1, B_field.get_Ny()) = B_field(B_field.get_Nx() - 1, 0); // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+    // B_field(B_field.get_Nx(), B_field.get_Ny()) = B_field(0, 0); // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+    // *(B_field.data() + B_field.get_Nx() + 1) = B_field(0, B_field.get_Ny() - 1); // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
+    //
+    // РћР±РЅРѕРІР»СЏСЋ РіСЂР°РЅРёС†Сѓ - РІРµСЂС… 2-РјРµСЂРЅРѕР№ СЃРёСЃС‚РµРјС‹
+    // for (int64_t x = 0; x < E_field.get_Nx(); ++x)
+    // {
+    //   *(E_field.data() + x + 1) = E_field(x, E_field.get_Ny() - 1); // СЃРЅРёР·Сѓ
+    //   E_field(x, E_field.get_Ny()) = E_field(x, 0); // СЃРІРµСЂС…Сѓ
+    //   *(B_field.data() + x + 1) = B_field(x, B_field.get_Ny() - 1); // СЃРЅРёР·Сѓ
+    //   B_field(x, B_field.get_Ny()) = B_field(x, 0); // СЃРІРµСЂС…Сѓ
+    // }
+    // for (int64_t y = 0; y < E_field.get_Ny(); ++y)
+    // {
+    //   E_field(-1, y) = E_field(E_field.get_Nx() - 1, y); // СЃР»РµРІР°
+    //   E_field(E_field.get_Nx(), y) = E_field(0, y); // СЃРїСЂР°РІР°
+    //   B_field(-1, y) = B_field(B_field.get_Nx() - 1, y); // СЃР»РµРІР°
+    //   B_field(B_field.get_Nx(), y) = B_field(0, y); // СЃРїСЂР°РІР°
+    // }
+    // E_field(-1, -1) = E_field(E_field.get_Nx() - 1, E_field.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР»
+    // E_field(-1, E_field.get_Ny()) = E_field(E_field.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»
+    // E_field(E_field.get_Nx(), E_field.get_Ny()) = E_field(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»
+    // *(E_field.data() + E_field.get_Nx() + 1) = E_field(0, E_field.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР»
+    // B_field(-1, -1) = B_field(B_field.get_Nx() - 1, B_field.get_Ny() - 1); // Р»РµРІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР»
+    // B_field(-1, B_field.get_Ny()) = B_field(B_field.get_Nx() - 1, 0); // Р»РµРІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»
+    // B_field(B_field.get_Nx(), B_field.get_Ny()) = B_field(0, 0); // РїСЂР°РІС‹Р№ РІРµСЂС…РЅРёР№ СѓРіРѕР»
+    // *(B_field.data() + B_field.get_Nx() + 1) = B_field(0, B_field.get_Ny() - 1); // РїСЂР°РІС‹Р№ РЅРёР¶РЅРёР№ СѓРіРѕР»
   };
 
   auto set_computational_data = [this, &helper_set_data, &loop_function, &E, &B]() {

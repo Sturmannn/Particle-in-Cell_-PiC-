@@ -4,7 +4,8 @@
 #include "FDTD.hpp"
 #include "gtest.h"
 
-using FDTD::Axis;
+
+//using FDTD::Axis;
 using FDTD::Component;
 
 namespace gtest {
@@ -23,6 +24,11 @@ public:
   Test_obj &operator=(const FDTD::FDTD &other_test_field);
   Test_obj &operator=(Test_obj &&other_test_field) noexcept;
 
+  FDTD::FDTD &get_field() { return field; }
+  FDTD::FDTD &get_analytical_field() { return analytical_field; }
+  const FDTD::FDTD &get_field() const { return field; }
+  const FDTD::FDTD &get_analytical_field() const { return analytical_field; }
+
   void analytical_default_solution(const Component E, const Component B,
                                    const double t, const Shift _shift);
 
@@ -32,6 +38,8 @@ public:
   void numerical_solution(const double t, const Shift _shift);
   void numerical_solution(const int64_t t, const Shift _shift);
 
+  double get_delta_space(void) const;
+
   double get_global_err(const Component component);
 
   void print_convergence(Test_obj &other_test); // Check by component "E"
@@ -39,17 +47,16 @@ public:
   static void write_convergence_to_file(const char *path,
                                         std::vector<double> &data);
 
-  FDTD::FDTD field;
-  FDTD::FDTD analytical_field;
 
 private:
+  FDTD::FDTD field;
+  FDTD::FDTD analytical_field;
   Component E, B; // Компоненты поля
-
   void Courant_condition_check(const Shift _shift) const noexcept;
 };
 
 TEST(Test_version_comparison, shifted_OY) {
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {10ull, 10ull, 1ull};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {32, 32, 1};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   double dt = 2e-15;
@@ -64,21 +71,30 @@ TEST(Test_version_comparison, shifted_OY) {
       (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
 
   dt = 0.25 * dx / C;
-  int64_t t = 10;
+  int64_t t = 55; // Задание количества итераций
 
   Component E = Component::Ez;
   Component B = Component::Bx;
-  Shift shift = Shift::shifted;
+  Shift shift = Shift::unshifted;
 
-  // FDTD::FDTD field(Nx_Ny, ax_ay, bx_by, dt);
   FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
   Test_obj test(E, B, std::move(field));
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);
 
-  // test.analytical_default_solution_OX(E, B, t);
-  // test.set_default_field_OX(E, B);
-  test.numerical_solution(t, shift);
+  // test.numerical_solution(dt * t, shift); // Щас делаю dt*t, а было просто t
+  test.numerical_solution(t, shift); // Щас делаю dt*t, а было просто t
+
+  ////// Проверка сходимости, создаём новый объект:
+  Nx_Ny_Nz = {64, 64, 1};
+  dt /= 4;
+  FDTD::FDTD field_2(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
+  Test_obj other_test(E,B, std::move(field_2));
+  other_test.analytical_default_solution(E, B, t * dt, shift);
+  other_test.set_default_field(E, B, shift);
+  other_test.numerical_solution(t, shift);
+  test.print_convergence(other_test);
+  
 
   int rank = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -86,10 +102,10 @@ TEST(Test_version_comparison, shifted_OY) {
     Field::ComputingField::clear_file(path_to_calculated_data);
     Field::ComputingField::clear_file(path_to_analytic_data);
 
-    test.field.write_fields_to_file(path_to_calculated_data, E, B,
-                                    test.field.get_dy());
-    test.analytical_field.write_fields_to_file(path_to_analytic_data, E, B,
-                                               test.field.get_dy());
+    test.get_field().write_fields_to_file(path_to_calculated_data, E, B,
+                                    test.get_delta_space());
+    test.get_analytical_field().write_fields_to_file(path_to_analytic_data, E, B,
+                                               test.get_delta_space());
   }
 
   // test.field.write_fields_to_file_OX(path_to_calculated_data,

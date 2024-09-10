@@ -1,0 +1,40 @@
+{
+    "version": 3,
+    "cmakeMinimumRequired": {
+      "major": 3,
+      "minor": 19
+    },
+    "configurePresets": [
+      {
+        "name": "clang-debug",
+        "description": "Preset for building with Clang in Debug mode with OpenMP support and Visual Studio 17 2022",
+        "generator": "Ninja",
+        "binaryDir": "${sourceDir}/build/",
+        "cacheVariables": {
+          "CMAKE_C_COMPILER": "clang",
+          "CMAKE_CXX_COMPILER": "clang++",
+          "CMAKE_LINKER": "lld",
+          "CMAKE_CXX_FLAGS": "-fopenmp",
+          "CMAKE_LIBRARY_PATH": "H:/Programs/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/lib",
+          "CMAKE_COLOR_DIAGNOSTICS": "ON",
+          "CMAKE_BUILD_TYPE": "Debug"
+        }
+      },
+      {
+        "name": "clang-release",
+        "description": "Preset for building with Clang in Release mode with OpenMP support and Visual Studio 17 2022",
+        "generator": "Ninja",
+        "binaryDir": "${sourceDir}/build/",
+        "cacheVariables": {
+          "CMAKE_C_COMPILER": "clang",
+          "CMAKE_CXX_COMPILER": "clang++",
+          "CMAKE_LINKER": "lld",
+          "CMAKE_CXX_FLAGS": "-fopenmp",
+          "CMAKE_LIBRARY_PATH": "H:/Programs/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/lib",
+          "CMAKE_COLOR_DIAGNOSTICS": "ON",
+          "CMAKE_BUILD_TYPE": "Release"
+        }
+      }
+    ]
+  }
+  

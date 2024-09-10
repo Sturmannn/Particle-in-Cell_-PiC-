@@ -1,0 +1,11 @@
+{
+    "C_Cpp.default.compilerPath": "h:\\Programs\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin\\clang++.exe",
+    "files.associations": {
+        "*.ejs": "html",
+        "vector": "cpp",
+        "xlocmon": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp",
+        "fstream": "cpp"
+    }
+}
