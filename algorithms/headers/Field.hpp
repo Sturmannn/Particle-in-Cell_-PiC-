@@ -43,9 +43,9 @@ public:
                     const int64_t _Nz = 1);
 
   // Операторы доступа к элементам поля
-  double &operator()(const int64_t i, const int64_t j, const int64_t k = 0);
+  double &operator()(const int64_t i, const int64_t j, const int64_t k = -1);
   const double &operator()(const int64_t i, const int64_t j,
-                           const int64_t k = 0) const;
+                           const int64_t k = -1) const;
 
   // Операторы присваивания
   ComputingField &operator=(const ComputingField &_field);
@@ -55,6 +55,8 @@ public:
   void write_field_to_file_OX(const char *path, const int64_t j = 0);
   void write_field_to_file_OY(const char *path, const int64_t i = 0);
   void write_field_to_file_OZ(const char *path, const int64_t j = 0);
+
+  void clear_field() noexcept;
 
   // Очистка файла
   static void clear_file(const char *path);

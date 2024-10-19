@@ -12,7 +12,11 @@ Field::ComputingField::ComputingField(const int64_t _Nx, const int64_t _Ny, cons
   Ny = _Ny;
   _Nz == 0 ? Nz = 1 : Nz = _Nz;
 
-  int64_t fieldSize = (_Nx + 2) * (_Ny + 2) * _Nz;
+  int64_t fieldSize{0};
+  if (Nz > 1)
+    fieldSize = (Nx + 2) * (Ny + 2) * (Nz + 2);
+  else
+    fieldSize = (Nx + 2) * (Ny + 2) * Nz;
 
   field.assign(fieldSize, 0.0);  // field.resize(Nx * Ny * Nz, 0.0);
 }
@@ -51,9 +55,10 @@ double& Field::ComputingField::operator()(const int64_t i, const int64_t j, cons
 
   // "k" по умолчанию 0, поэтому двумерный случай считается верно
   // ============ Пока что не проверял правильность умножения на "k" для трёхмерного случая
-  return field[Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx - i + 1)];
+  // return field[Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx - i + 1)];
   // Аналог, надо будет сравнить с этим
-  //return field[(Nx + 2) * (j + 1) + (i + 1)]; !!!!!!!!!!!!!!!!!!!!!!!!
+  return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Nx + 2) * (j + 1) + (i + 1)]; // !!!!!!!!!!!!!!!!!!!!!!!!
+  // return field[(Nx + 2) * (j + 1) + (i + 1)]; // !!!!!!!!!!!!!!!!!!!!!!!!
 
   //return field[Nx * Ny * k + (Nx + 2) * (j + 1) - (Nx + 2 - i - 1)]; // здесь К + 1 надо наверное
 }
@@ -62,7 +67,8 @@ const double& Field::ComputingField::operator()(const int64_t i, const int64_t j
 {
   //return const_cast<const double&>((*this)(i, j, k));
   //return (*this)(i, j, k);
-  return field[Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx - i + 1)];
+  // return field[Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx - i + 1)];
+  return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Nx + 2) * (j + 1) + (i + 1)];
 }
 
 Field::ComputingField& Field::ComputingField::operator=(const Field::ComputingField& _field) {
@@ -124,16 +130,16 @@ void Field::ComputingField::write_field_to_file(const char* path, const int64_t 
   case Axis::Ox:
     check_index(index, Ny);
     for (int64_t i = 0; i < Nx; ++i)
-      outfile << this->operator()(i, index, 0) << (i < Nx - 1 ? ';' : '\n');
+      outfile << this->operator()(i, index, -1) << (i < Nx - 1 ? ';' : '\n'); // Меняю с (i, index, 0) на (i, index, -1)
     break;
   case Axis::Oy:
     check_index(index, Nx);
     for (int64_t j = 0; j < Ny; ++j)
-      outfile << this->operator()(index, j, 0) << (j < Ny - 1 ? ';' : '\n');
+      outfile << this->operator()(index, j, -1) << (j < Ny - 1 ? ';' : '\n');
     break;
   case Axis::Oz:
     check_index(index, Ny);
-    for (int64_t k = 0; k < Nz; ++k)
+    for (int64_t k = 0; k < Nz; ++k) // k = 0, но по оси Oz двигаемся только в 3D, так что ОК
       outfile << this->operator()(0, index, k) << (k < Nz - 1 ? ';' : '\n');
     break;
   default:
@@ -156,4 +162,9 @@ void Field::ComputingField::write_field_to_file_OY(const char* path, const int64
 void Field::ComputingField::write_field_to_file_OZ(const char* path, const int64_t j)
 {
   write_field_to_file(path, j, Axis::Oz);
+}
+
+void Field::ComputingField::clear_field() noexcept {
+  field.clear();
+  Nx = Ny = Nz = 0;
 }

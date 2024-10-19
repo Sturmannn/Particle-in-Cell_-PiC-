@@ -1,6 +1,7 @@
 #ifndef __TESTS_HPP__
 #define __TESTS_HPP__
 
+#include <functional>
 #include "FDTD.hpp"
 #include "gtest.h"
 
@@ -53,10 +54,16 @@ private:
   FDTD::FDTD analytical_field;
   Component E, B; // Компоненты поля
   void Courant_condition_check(const Shift _shift) const noexcept;
+  void set_default_field_or_analytical_default_solution(const Component E,
+                                                        const Component B,
+                                                        const Shift _shift,
+                                                        std::function<void(std::tuple<Axis, int64_t, int64_t>,
+                                                          std::tuple<Axis, int64_t, int64_t>,
+                                                          std::tuple<Axis, int64_t, int64_t>)> loop_function);
 };
 
 TEST(Test_version_comparison, shifted_OY) {
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {32, 32, 1};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 16};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   double dt = 2e-15;
@@ -73,28 +80,43 @@ TEST(Test_version_comparison, shifted_OY) {
   dt = 0.25 * dx / C;
   int64_t t = 55; // Задание количества итераций
 
-  Component E = Component::Ez;
-  Component B = Component::Bx;
-  Shift shift = Shift::unshifted;
+  Component E = Component::Ex;
+  Component B = Component::By;
+  Shift shift = Shift::shifted;
 
   FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
   Test_obj test(E, B, std::move(field));
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);
 
-  // test.numerical_solution(dt * t, shift); // Щас делаю dt*t, а было просто t
-  test.numerical_solution(t, shift); // Щас делаю dt*t, а было просто t
+  test.numerical_solution(t, shift);
+    Field::ComputingField::clear_file(path_to_calculated_data);
+    Field::ComputingField::clear_file(path_to_analytic_data);
+
+    test.get_field().write_fields_to_file(path_to_calculated_data, E, B,
+                                    test.get_delta_space());
+    test.get_analytical_field().write_fields_to_file(path_to_analytic_data, E, B,
+                                               test.get_delta_space());
 
   ////// Проверка сходимости, создаём новый объект:
-  Nx_Ny_Nz = {64, 64, 1};
-  dt /= 4;
+  // НЕ ЗАБЫТЬ! Если уменьшяю dt в 4 раза, то и t увеличиваю в 4 раза
+  Nx_Ny_Nz = {32, 32, 32};
+  // Ошибка уменьшается в 4 раза
+  if (shift == Shift::shifted) { 
+    dt /= 2;
+    t *= 2;
+  }
+  // Ошибка уменьшается в 4 раза 
+  else if (shift == Shift::unshifted) {
+    dt /= 4;
+    t *= 4;
+  }
   FDTD::FDTD field_2(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
   Test_obj other_test(E,B, std::move(field_2));
   other_test.analytical_default_solution(E, B, t * dt, shift);
   other_test.set_default_field(E, B, shift);
-  other_test.numerical_solution(t, shift);
+  other_test.numerical_solution(t, shift); // t для без сдвигов, а t * dt для сдвигов (не так...Учёт идёт в int/double)
   test.print_convergence(other_test);
-  
 
   int rank = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -108,11 +130,57 @@ TEST(Test_version_comparison, shifted_OY) {
                                                test.get_delta_space());
   }
 
+  std::cout << "OK" << std::endl;
   // test.field.write_fields_to_file_OX(path_to_calculated_data,
   // test.field.get_dx());
   // test.analytical_field.write_fields_to_file_OX(path_to_analytic_data,
   // test.field.get_dx());
 }
+
+// TEST(Test, unshifted_field_test_several_iterations_2d) {
+//   std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 1}; // Start size of the field
+//   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
+//   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
+
+//   auto increase_Nx_Ny_Nz = [](std::tuple<int64_t, int64_t, int64_t> &_Nx_Ny_Nz, int64_t value) -> void {
+//     std::get<0>(_Nx_Ny_Nz) *= value;
+//     std::get<1>(_Nx_Ny_Nz) *= value;
+//     if (std::get<2>(_Nx_Ny_Nz) > 2) {
+//       std::get<2>(_Nx_Ny_Nz) *= value;
+//     }
+//   };
+
+//   // dx здесь для того, чтобы вычислить dt
+//   double dx = (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
+//   double dt = 0.25 * dx / C;
+//   int64_t t = 10; // Задание количества итераций
+
+//   // Положительное направление ОУ
+//   Component E = Component::Ex;
+//   Component B = Component::By;
+
+//   FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
+//   Test_obj test(E, B, std::move(field));
+//   Test_obj another_test(test);
+
+//   test.set_default_field(E, B, Shift::unshifted);
+//   test.analytical_default_solution(E, B, dt * t, Shift::unshifted);
+//   test.numerical_solution(t, Shift::unshifted);
+
+//   // Количество итераций 
+//   uint8_t num_iterations = 6;
+
+//   for (int64_t i{0}; i < num_iterations; ++i) {
+//     dt /= 4;
+//     t *= 4;
+//     increase_Nx_Ny_Nz(Nx_Ny_Nz, 2); // Увеличение сетки в два раза
+//     another_test = {E, B, {Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt}};
+//     another_test.set_default_field(E, B, Shift::unshifted);
+//     another_test.analytical_default_solution(E, B, dt * t, Shift::unshifted);
+//     another_test.numerical_solution(t, Shift::unshifted);
+//     test.print_convergence(another_test);
+//   }
+// }
 
 // TEST(Test, main_test) {
 //  std::pair<int64_t, int64_t> Nx_Ny = { 64ull, 64ull };

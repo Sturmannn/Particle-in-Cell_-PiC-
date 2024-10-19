@@ -81,17 +81,19 @@ public:
   void
   write_fields_to_file(const char *path, Component E, Component B,
                        const double delta,
-                       const int64_t row_number = 0ull); // The col is fixed
+                       const int64_t row_number = 0); // The col is fixed
+
+  void clear_fields(void) noexcept;
 
   static Axis get_axis(const Component E, const Component B);
 
   void boundary_synchronization();
+  void boundary_synchronization_3D();
 private:
   // friend class Test_obj;
   int64_t Nx, Ny, Nz;                           
   Field::ComputingField Ex, Ey, Ez, Bx, By, Bz; 
   double ax, ay, az, bx, by, bz, dx, dy, dz, dt;
-
 };
 
 } // namespace FDTD
