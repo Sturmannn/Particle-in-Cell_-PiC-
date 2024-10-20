@@ -142,6 +142,7 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     default: break;
     }
 
+
     for (axis_1_counter = std::get<1>(axis_1); axis_1_counter < std::get<2>(axis_1); ++(axis_1_counter), coordinate += delta_coordinate)
       for (axis_2_counter = std::get<1>(axis_2); axis_2_counter < std::get<2>(axis_2); ++(axis_2_counter))
         for (axis_3_counter = std::get<1>(axis_3); axis_3_counter < std::get<2>(axis_3); ++(axis_3_counter))
@@ -542,6 +543,7 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
     default: break;
     }
 
+#pragma omp parallel for private(axis_1_counter, axis_2_counter, axis_3_counter) collapse(3)
     for (axis_1_counter = std::get<1>(axis_1); axis_1_counter < std::get<2>(axis_1); ++(axis_1_counter), coordinate += delta_coordinate)
       for (axis_2_counter = std::get<1>(axis_2); axis_2_counter < std::get<2>(axis_2); ++(axis_2_counter))
         for (axis_3_counter = std::get<1>(axis_3); axis_3_counter < std::get<2>(axis_3); ++(axis_3_counter))

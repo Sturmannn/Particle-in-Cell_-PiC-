@@ -15,7 +15,6 @@ FDTD::FDTD::FDTD(const std::tuple<int64_t, int64_t, int64_t> &Nx_Ny_Nz,
       dx{(get_bx() - get_ax()) / static_cast<double>(Nx)},
       dy{(get_by() - get_ay()) / static_cast<double>(Ny)},
       dz{(Nz > 1) ? (get_bz() - get_az()) / static_cast<double>(Nz) : 0.0},
-      // dz{(get_bz() - get_az()) / static_cast<double>(Nz)},
       dt{_dt} {}
 
 FDTD::FDTD::FDTD(const FDTD &_fields)
@@ -123,8 +122,11 @@ void FDTD::FDTD::field_update(const double t) {
 
   int64_t i{0};
   int64_t j{0};
+
+#pragma omp parallel private(i, j)
+{
   for (double time = 0.0; time < t; time += dt) {
-  // for (int64_t time = 0; time < 10; time++) {
+#pragma omp for collapse(2)
     for (j = 0; j < Ny; ++j) {
       for (i = 0; i < Nx; ++i) {
         Ex(i, j) =
@@ -137,6 +139,7 @@ void FDTD::FDTD::field_update(const double t) {
       }
     }
     boundary_synchronization();
+#pragma omp for collapse(2)
     for (j = 0; j < Ny; ++j)
       for (i = 0; i < Nx; ++i) {
         Bx(i, j) =
@@ -149,6 +152,7 @@ void FDTD::FDTD::field_update(const double t) {
       }
     boundary_synchronization();
   }
+}
 }
 
 // Only for 2D
@@ -163,7 +167,10 @@ void FDTD::FDTD::field_update(const int64_t t) {
   int64_t i{0};
   int64_t j{0};
 
+#pragma omp parallel private(i, j)
+{
   for (int64_t time = 0; time < t; time++) {
+#pragma omp for collapse(2)
     for (j = 0; j < Ny; ++j) {
       for (i = 0; i < Nx; ++i) {
         Ex(i, j) =
@@ -176,6 +183,7 @@ void FDTD::FDTD::field_update(const int64_t t) {
       }
     }
     boundary_synchronization();
+#pragma omp for collapse(2)
     for (j = 0; j < Ny; ++j)
       for (i = 0; i < Nx; ++i) {
         Bx(i, j) =
@@ -189,15 +197,14 @@ void FDTD::FDTD::field_update(const int64_t t) {
     boundary_synchronization();
   }
 }
+}
 
-void FDTD::FDTD::shifted_field_update(const double t){}
+void FDTD::FDTD::shifted_field_update(const double t) {}
 void FDTD::FDTD::shifted_field_update(const int64_t t) {
   if (dt == 0.0) {
     std::cout << "Time step is null";
     exit(-1);
   }
-
-  std::cout << "shifted_field_update(const double t)" << std::endl;
 
   double B_dt = dt * 0.5;
   double E_dt = dt;
@@ -209,99 +216,109 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
   int64_t j{0};
   int64_t k{k_value};
 
-  auto get_index = [](int64_t i, int64_t j, int64_t k, int64_t Nx, int64_t Ny) {
-    return (Nx + 2) * (Ny + 2) * (k + 1) + (Nx + 2) * (j + 1) + (i + 1);
-  };
-
   // for (double time = 0.0; time < t; time += E_dt) // ПОПРАВИТЬ НА time += E_dt
   if (Nz < 2) {
-    for (int64_t time{0}; time < t; ++time) {
+  #pragma omp parallel private(i, j) 
+  {
+    for (int64_t time = 0; time < t; ++time) {
+
+#pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
           Bx(i, j) = Bx(i, j) + C * B_dt * (-(Ez(i, j + 1) - Ez(i, j)) / dy);
           By(i, j) = By(i, j) + C * B_dt * ((Ez(i + 1, j) - Ez(i, j)) / dx);
-          Bz(i, j) = Bz(i, j) + C * B_dt * ((Ex(i, j + 1) - Ex(i, j)) / dy - (Ey(i + 1, j) - Ey(i, j)) / dx);
+          Bz(i, j) = Bz(i, j) + C * B_dt *
+                                    ((Ex(i, j + 1) - Ex(i, j)) / dy -
+                                     (Ey(i + 1, j) - Ey(i, j)) / dx);
         }
       boundary_synchronization();
+#pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
           Ex(i, j) = Ex(i, j) + C * E_dt * ((Bz(i, j) - Bz(i, j - 1)) / dy);
           Ey(i, j) = Ey(i, j) + C * E_dt * (-(Bz(i, j) - Bz(i - 1, j)) / dx);
-          Ez(i, j) = Ez(i, j) + C * E_dt *  ((By(i, j) - By(i - 1, j)) / dx - (Bx(i, j) - Bx(i, j - 1)) / dy);
+          Ez(i, j) = Ez(i, j) + C * E_dt *
+                                    ((By(i, j) - By(i - 1, j)) / dx -
+                                     (Bx(i, j) - Bx(i, j - 1)) / dy);
         }
-      boundary_synchronization();      
+      boundary_synchronization();
+#pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
           Bx(i, j) = Bx(i, j) + C * B_dt * (-(Ez(i, j + 1) - Ez(i, j)) / dy);
           By(i, j) = By(i, j) + C * B_dt * ((Ez(i + 1, j) - Ez(i, j)) / dx);
-          Bz(i, j) = Bz(i, j) + C * B_dt * ((Ex(i, j + 1) - Ex(i, j)) / dy - (Ey(i + 1, j) - Ey(i, j)) / dx);
+          Bz(i, j) = Bz(i, j) + C * B_dt *
+                                    ((Ex(i, j + 1) - Ex(i, j)) / dy -
+                                     (Ey(i + 1, j) - Ey(i, j)) / dx);
         }
       boundary_synchronization();
     }
   }
-  else {
-    for (int64_t time{0}; time < t; ++time) // ПОПРАВИТЬ НА time += E_dt
+  } else {
+#pragma omp parallel private(i, j, k)
     {
-      for (i = 0; i < Nx; ++i)
-        for (j = 0; j < Ny; ++j)
-          for (k = k_value; k < _Nz; ++k) {
-          Bx(i, j, k) = Bx(i, j, k) + C * B_dt *
-                                          ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz -
-                                           (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+      for (int64_t time = 0; time < t; ++time) // ПОПРАВИТЬ НА time += E_dt
+      {
+        // std::cout << "Hello from " << omp_get_thread_num() << std::endl;
+#pragma omp for collapse(3)
+        for (i = 0; i < Nx; ++i)
+          for (j = 0; j < Ny; ++j)
+            for (k = k_value; k < _Nz; ++k) {
+              Bx(i, j, k) =
+                  Bx(i, j, k) + C * B_dt *
+                                    ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz -
+                                     (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
 
-          By(i, j, k) = By(i, j, k) + C * B_dt *
-                                          ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx -
-                                           (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
-          // if ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy != 0) {
-          //   std::cout << (Ex(i, j + 1, k) - Ex(i, j, k)) / dy << std::endl;
-          //   std::cout << i << " " << j << " " << k << std::endl;
-          //   exit(-1);
-          // }
-          int64_t index_Ex = get_index(i, j + 1, k, Nx, Ny);
-          int64_t index_Ex_2 = get_index(i, j, k, Nx, Ny);
-          //std::cout << "Ex[" << index_Ex << "] " << Ex(i, j + 1, k) << '\n' << "Ex[" << index_Ex_2 << "] " << Ex(i, j, k) << std::endl;
+              By(i, j, k) =
+                  By(i, j, k) + C * B_dt *
+                                    ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx -
+                                     (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
 
-          int64_t index_Ey = get_index(i + 1, j, k, Nx, Ny);
-          int64_t index_Ey_2 = get_index(i, j, k, Nx, Ny);
-          //std::cout << "Ey[" << index_Ey << "] " << Ey(i + 1, j, k) << '\n' << "Ey[" << index_Ey_2 << "] " << Ey(i, j, k) << std::endl;
-          
-          Bz(i, j, k) = Bz(i, j, k) + C * B_dt *
-                                          ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
-                                           (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
-        }
-      boundary_synchronization_3D();
-      for (i = 0; i < Nx; ++i)
-        for (j = 0; j < Ny; ++j)
-          for (k = k_value; k < _Nz; ++k)
-          {
-            Ex(i, j, k) = Ex(i, j, k) + C * E_dt *
-                                            ((Bz(i, j, k) - Bz(i, j - 1, k)) / dy -
-                                             (By(i, j, k) - By(i, j, k - 1)) / dz);
-            Ey(i, j, k) = Ey(i, j, k) + C * E_dt *
-                                            ((Bx(i, j, k) - Bx(i, j, k - 1)) / dz -
-                                             (Bz(i, j, k) - Bz(i - 1, j, k)) / dx);
-            Ez(i, j, k) = Ez(i, j, k) + C * E_dt *
-                                            ((By(i, j, k) - By(i - 1, j, k)) / dx -
-                                             (Bx(i, j, k) - Bx(i, j - 1, k)) / dy);
-          }
-      boundary_synchronization_3D();
-      for (i = 0; i < Nx; ++i)
-        for (j = 0; j < Ny; ++j)
-          for (k = k_value; k < _Nz; ++k) {
-            Bx(i, j, k) = Bx(i, j, k) + C * B_dt *
-                                            ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz -
-                                             (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
-            By(i, j, k) = By(i, j, k) + C * B_dt *
-                                            ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx -
-                                             (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
-            Bz(i, j, k) = Bz(i, j, k) + C * B_dt *
-                                            ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
-                                             (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
-          }
-      boundary_synchronization_3D();
+              Bz(i, j, k) =
+                  Bz(i, j, k) + C * B_dt *
+                                    ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
+                                     (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+            }
+        boundary_synchronization_3D();
+#pragma omp for collapse(3)
+        for (i = 0; i < Nx; ++i)
+          for (j = 0; j < Ny; ++j)
+            for (k = k_value; k < _Nz; ++k) {
+              Ex(i, j, k) =
+                  Ex(i, j, k) + C * E_dt *
+                                    ((Bz(i, j, k) - Bz(i, j - 1, k)) / dy -
+                                     (By(i, j, k) - By(i, j, k - 1)) / dz);
+              Ey(i, j, k) =
+                  Ey(i, j, k) + C * E_dt *
+                                    ((Bx(i, j, k) - Bx(i, j, k - 1)) / dz -
+                                     (Bz(i, j, k) - Bz(i - 1, j, k)) / dx);
+              Ez(i, j, k) =
+                  Ez(i, j, k) + C * E_dt *
+                                    ((By(i, j, k) - By(i - 1, j, k)) / dx -
+                                     (Bx(i, j, k) - Bx(i, j - 1, k)) / dy);
+            }
+        boundary_synchronization_3D();
+#pragma omp for collapse(3)
+        for (i = 0; i < Nx; ++i)
+          for (j = 0; j < Ny; ++j)
+            for (k = k_value; k < _Nz; ++k) {
+              Bx(i, j, k) =
+                  Bx(i, j, k) + C * B_dt *
+                                    ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz -
+                                     (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+              By(i, j, k) =
+                  By(i, j, k) + C * B_dt *
+                                    ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx -
+                                     (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+              Bz(i, j, k) =
+                  Bz(i, j, k) + C * B_dt *
+                                    ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
+                                     (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+            }
+        boundary_synchronization_3D();
+      }
     }
   }
-  std::cout << "After numerical solution" << std::endl;
 }
 
 // void FDTD::FDTD::shifted_field_update(const int64_t t) {
@@ -344,8 +361,10 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //   // }
 //   // else
 //   //{
-//   //   Ny_local = ((get_Ny() + 2) / mpi_comm_size) + 1; //   int64_t Ny_local =
-//   //   (get_Ny() + 2) / mpi_comm_size + 1; std::cout << "Ny_local(drugie) = " <<
+//   //   Ny_local = ((get_Ny() + 2) / mpi_comm_size) + 1; //   int64_t Ny_local
+//   =
+//   //   (get_Ny() + 2) / mpi_comm_size + 1; std::cout << "Ny_local(drugie) = "
+//   <<
 //   //   Ny_local << std::endl;
 //   // }
 
@@ -443,7 +462,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //     for (i = 0; i < Nx_local - 2; ++i)
 //       for (j = 0; j < Ny_local - 2; ++j)
 //         for (k = 0; k < Nz_local; ++k) {
-//           // std::cout << Ez_local(i + 1, j, k) << " " << Ez_local(i, j, k) << "
+//           // std::cout << Ez_local(i + 1, j, k) << " " << Ez_local(i, j, k)
+//           << "
 //           // " << (Ez_local(i + 1, j, k) - Ez_local(i, j, k)) << std::endl;
 //           // if (By_local(i, j, k) != 0)
 //           //{
@@ -460,7 +480,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //               By_local(i, j, k) +
 //               C * B_dt *
 //                   ((Ez_local(i + 1, j, k) - Ez_local(i, j, k)) /
-//                    dx /*- (Ex_local(i, j, k + 1) - Ex_local(i, j, k)) / dz*/);
+//                    dx /*- (Ex_local(i, j, k + 1) - Ex_local(i, j, k)) /
+//                    dz*/);
 //           Bz_local(i, j, k) =
 //               Bz_local(i, j, k) +
 //               C * B_dt *
@@ -482,7 +503,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 
 //     // Обновляю границу - верх 2-х мерной системы
 //     if (rank == 0 && mpi_comm_size != 1) {
-//       // Получаю верхнюю строчку последнего процесса для синхронизации нулевой
+//       // Получаю верхнюю строчку последнего процесса для синхронизации
+//       нулевой
 //       // строчки нулевого процесса Замечание: здесь get_Nx() = Nx_local - 2
 //       MPI_Recv(Bx_local.data() + 1, static_cast<int>(Bx_local.get_Nx()),
 //                MPI_DOUBLE, mpi_comm_size - 1, 0, MPI_COMM_WORLD,
@@ -522,13 +544,16 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //                 MPI_COMM_WORLD); // Верх последнего процесса
 
 //       MPI_Ssend(&Bx_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 12,
-//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла
+//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего
+//                 угла
 //                                  // посл. процесса)
 //       MPI_Ssend(&By_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 13,
-//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла
+//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего
+//                 угла
 //                                  // посл. процесса)
 //       MPI_Ssend(&Bz_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 14,
-//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла
+//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего
+//                 угла
 //                                  // посл. процесса)
 
 //       MPI_Ssend(&Bx_local(Bx_local.get_Nx() - 1, 0), 1, MPI_DOUBLE,
@@ -569,62 +594,84 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //                 static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, 0, 2,
 //                 MPI_COMM_WORLD); // Низ нулевого процесса (тэг 2)
 
-//       MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE,
+//       MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 1) - 2, 1,
+//       MPI_DOUBLE,
 //                 0, 3,
-//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 3)
-//       MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE,
+//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг
+//                 3)
+//       MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 1) - 2, 1,
+//       MPI_DOUBLE,
 //                 0, 4,
-//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 4)
-//       MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE,
+//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг
+//                 4)
+//       MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 1) - 2, 1,
+//       MPI_DOUBLE,
 //                 0, 5,
-//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 5)
+//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг
+//                 5)
 
-//       MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE,
+//       MPI_Ssend(Bx_local.data() + Nx_local * (Ny_local - 2) + 1, 1,
+//       MPI_DOUBLE,
 //                 0, 6,
 //                 MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-//       MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE,
+//       MPI_Ssend(By_local.data() + Nx_local * (Ny_local - 2) + 1, 1,
+//       MPI_DOUBLE,
 //                 0, 7,
 //                 MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-//       MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE,
+//       MPI_Ssend(Bz_local.data() + Nx_local * (Ny_local - 2) + 1, 1,
+//       MPI_DOUBLE,
 //                 0, 8,
 //                 MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
 
 //       MPI_Recv(&Bx_local(0, Bx_local.get_Ny()),
 //                static_cast<int>(Bx_local.get_Nx()), MPI_DOUBLE, 0, 9,
 //                MPI_COMM_WORLD,
-//                &status); // сверху (получение нулевой строки нулевого процесса)
+//                &status); // сверху (получение нулевой строки нулевого
+//                процесса)
 //       MPI_Recv(&By_local(0, By_local.get_Ny()),
 //                static_cast<int>(By_local.get_Nx()), MPI_DOUBLE, 0, 10,
 //                MPI_COMM_WORLD,
-//                &status); // сверху (получение нулевой строки нулевого процесса)
+//                &status); // сверху (получение нулевой строки нулевого
+//                процесса)
 //       MPI_Recv(&Bz_local(0, Bz_local.get_Ny()),
 //                static_cast<int>(Bz_local.get_Nx()), MPI_DOUBLE, 0, 11,
 //                MPI_COMM_WORLD,
-//                &status); // сверху (получение нулевой строки нулевого процесса)
+//                &status); // сверху (получение нулевой строки нулевого
+//                процесса)
 
-//       MPI_Recv(&Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()), 1, MPI_DOUBLE,
+//       MPI_Recv(&Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()), 1,
+//       MPI_DOUBLE,
 //                0, 12, MPI_COMM_WORLD,
-//                &status); // правый верхний узел (получение из нулевого процесса)
-//       MPI_Recv(&By_local(By_local.get_Nx(), By_local.get_Ny()), 1, MPI_DOUBLE,
+//                &status); // правый верхний узел (получение из нулевого
+//                процесса)
+//       MPI_Recv(&By_local(By_local.get_Nx(), By_local.get_Ny()), 1,
+//       MPI_DOUBLE,
 //                0, 13, MPI_COMM_WORLD,
-//                &status); // правый верхний узел (получение из нулевого процесса)
-//       MPI_Recv(&Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()), 1, MPI_DOUBLE,
+//                &status); // правый верхний узел (получение из нулевого
+//                процесса)
+//       MPI_Recv(&Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()), 1,
+//       MPI_DOUBLE,
 //                0, 14, MPI_COMM_WORLD,
-//                &status); // правый верхний узел (получение из нулевого процесса)
+//                &status); // правый верхний узел (получение из нулевого
+//                процесса)
 
 //       MPI_Recv(&Bx_local(-1, Bx_local.get_Ny()), 1, MPI_DOUBLE, 0, 15,
 //                MPI_COMM_WORLD,
-//                &status); // левый верхний узел (получение из нулевого процесса)
+//                &status); // левый верхний узел (получение из нулевого
+//                процесса)
 //       MPI_Recv(&By_local(-1, By_local.get_Ny()), 1, MPI_DOUBLE, 0, 16,
 //                MPI_COMM_WORLD,
-//                &status); // левый верхний узел (получение из нулевого процесса)
+//                &status); // левый верхний узел (получение из нулевого
+//                процесса)
 //       MPI_Recv(&Bz_local(-1, Bz_local.get_Ny()), 1, MPI_DOUBLE, 0, 17,
 //                MPI_COMM_WORLD,
-//                &status); // левый верхний узел (получение из нулевого процесса)
+//                &status); // левый верхний узел (получение из нулевого
+//                процесса)
 //     }
 //     MPI_Barrier(MPI_COMM_WORLD);
 //     // for (size_t i = 0; i < 84; ++i)
-//     //   std::cout << "11Bx[" << i << "] = " << *(Bx_local.data() + i) << "\n";
+//     //   std::cout << "11Bx[" << i << "] = " << *(Bx_local.data() + i) <<
+//     "\n";
 
 //     if (mpi_comm_size == 1) {
 //       for (int64_t x = 0; x < Bx_local.get_Nx(); ++x) {
@@ -651,7 +698,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //         Bz_local(Bz_local.get_Nx(), y) = Bz_local(0, y);      // справа
 //       }
 //       Bx_local(-1, -1) = Bx_local(Bx_local.get_Nx() - 1,
-//                                   Bx_local.get_Ny() - 1); // левый нижний узел
+//                                   Bx_local.get_Ny() - 1); // левый нижний
+//                                   узел
 //       Bx_local(-1, Bx_local.get_Ny()) =
 //           Bx_local(Bx_local.get_Nx() - 1, 0); // левый верхний узел
 //       Bx_local(Bx_local.get_Nx(), Bx_local.get_Ny()) =
@@ -660,7 +708,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //           Bx_local(0, Bx_local.get_Ny() - 1); // правый нижний узел
 
 //       By_local(-1, -1) = By_local(By_local.get_Nx() - 1,
-//                                   By_local.get_Ny() - 1); // левый нижний узел
+//                                   By_local.get_Ny() - 1); // левый нижний
+//                                   узел
 //       By_local(-1, By_local.get_Ny()) =
 //           By_local(By_local.get_Nx() - 1, 0); // левый верхний узел
 //       By_local(By_local.get_Nx(), By_local.get_Ny()) =
@@ -669,7 +718,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //           By_local(0, By_local.get_Ny() - 1); // правый нижний узел
 
 //       Bz_local(-1, -1) = Bz_local(Bz_local.get_Nx() - 1,
-//                                   Bz_local.get_Ny() - 1); // левый нижний узел
+//                                   Bz_local.get_Ny() - 1); // левый нижний
+//                                   узел
 //       Bz_local(-1, Bz_local.get_Ny()) =
 //           Bz_local(Bz_local.get_Nx() - 1, 0); // левый верхний узел
 //       Bz_local(Bz_local.get_Nx(), Bz_local.get_Ny()) =
@@ -700,62 +750,63 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //         MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Bx_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 //         MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      By_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 //         MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Bz_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 
 //         MPI_Sendrecv(Bx_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Bx_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //         MPI_Sendrecv(By_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, By_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //         MPI_Sendrecv(Bz_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Bz_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //       } else if (rank == 0) {
 //         MPI_Sendrecv(Bx_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Bx_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 //         MPI_Sendrecv(By_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      By_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 //         MPI_Sendrecv(Bz_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Bz_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
-//       } else                                   // if (rank == mpi_comm_size - 1)
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+//       } else                                   // if (rank == mpi_comm_size -
+//       1)
 //       {
 
 //         MPI_Sendrecv(Bx_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Bx_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //         MPI_Sendrecv(By_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, By_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //         MPI_Sendrecv(Bz_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Bz_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //       }
 //       MPI_Barrier(MPI_COMM_WORLD);
 //       // if (rank == 0)
@@ -771,7 +822,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //       //     "\n";
 //       // }
 //     }
-//     // ==============================================================================================================================================
+//     //
+//     ==============================================================================================================================================
 
 //     // for (i = 0ull; i < Nx_local; ++i)
 //     //   for (j = 0ull; j < Ny_local; ++j)
@@ -784,7 +836,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //               Ex_local(i, j, k) +
 //               C * E_dt *
 //                   ((Bz_local(i, j, k) - Bz_local(i, j - 1, k)) /
-//                    dy /*- (By_local(i, j, k) - By_local(i, j, k - 1)) / dz*/);
+//                    dy /*- (By_local(i, j, k) - By_local(i, j, k - 1)) /
+//                    dz*/);
 //           Ey_local(i, j, k) =
 //               Ey_local(i, j, k) +
 //               C * E_dt *
@@ -823,7 +876,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //       //   Ez_local(-1, y) = Ez_local(Ez_local.get_Nx() - 1, y); // слева
 //       //   Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y); // справа
 //       // }
-//       //  Получаю верхнюю строчку последнего процесса для синхронизации нулевой
+//       //  Получаю верхнюю строчку последнего процесса для синхронизации
+//       нулевой
 //       //  строчки нулевого процесса Замечание: здесь get_Nx() = Nx_local - 2
 //       MPI_Recv(Ex_local.data() + 1, static_cast<int>(Ex_local.get_Nx()),
 //                MPI_DOUBLE, mpi_comm_size - 1, 0, MPI_COMM_WORLD,
@@ -863,13 +917,16 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //                 MPI_COMM_WORLD); // Верх последнего процесса
 
 //       MPI_Ssend(&Ex_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 12,
-//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла
+//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего
+//                 угла
 //                                  // посл. процесса)
 //       MPI_Ssend(&Ey_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 13,
-//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла
+//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего
+//                 угла
 //                                  // посл. процесса)
 //       MPI_Ssend(&Ez_local(0, 0), 1, MPI_DOUBLE, mpi_comm_size - 1, 14,
-//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего угла
+//                 MPI_COMM_WORLD); // левый нижний угол (для правого врехнего
+//                 угла
 //                                  // посл. процесса)
 
 //       MPI_Ssend(&Ex_local(Ex_local.get_Nx() - 1, 0), 1, MPI_DOUBLE,
@@ -912,58 +969,79 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //                 static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, 0, 2,
 //                 MPI_COMM_WORLD); // Низ нулевого процесса (тэг 2)
 
-//       MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE,
+//       MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 1) - 2, 1,
+//       MPI_DOUBLE,
 //                 0, 3,
-//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 3)
-//       MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE,
+//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг
+//                 3)
+//       MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 1) - 2, 1,
+//       MPI_DOUBLE,
 //                 0, 4,
-//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 4)
-//       MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 1) - 2, 1, MPI_DOUBLE,
+//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг
+//                 4)
+//       MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 1) - 2, 1,
+//       MPI_DOUBLE,
 //                 0, 5,
-//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг 5)
+//                 MPI_COMM_WORLD); // левый нижний узел нулевого процесса (тэг
+//                 5)
 
-//       MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE,
+//       MPI_Ssend(Ex_local.data() + Nx_local * (Ny_local - 2) + 1, 1,
+//       MPI_DOUBLE,
 //                 0, 6,
 //                 MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-//       MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE,
+//       MPI_Ssend(Ey_local.data() + Nx_local * (Ny_local - 2) + 1, 1,
+//       MPI_DOUBLE,
 //                 0, 7,
 //                 MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
-//       MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 2) + 1, 1, MPI_DOUBLE,
+//       MPI_Ssend(Ez_local.data() + Nx_local * (Ny_local - 2) + 1, 1,
+//       MPI_DOUBLE,
 //                 0, 8,
 //                 MPI_COMM_WORLD); // правый нижний узел узел нулевого процесса
 
 //       MPI_Recv(&Ex_local(0, Ex_local.get_Ny()),
 //                static_cast<int>(Ex_local.get_Nx()), MPI_DOUBLE, 0, 9,
 //                MPI_COMM_WORLD,
-//                &status); // сверху (получение нулевой строки нулевого процесса)
+//                &status); // сверху (получение нулевой строки нулевого
+//                процесса)
 //       MPI_Recv(&Ey_local(0, Ey_local.get_Ny()),
 //                static_cast<int>(Ey_local.get_Nx()), MPI_DOUBLE, 0, 10,
 //                MPI_COMM_WORLD,
-//                &status); // сверху (получение нулевой строки нулевого процесса)
+//                &status); // сверху (получение нулевой строки нулевого
+//                процесса)
 //       MPI_Recv(&Ez_local(0, Ez_local.get_Ny()),
 //                static_cast<int>(Ez_local.get_Nx()), MPI_DOUBLE, 0, 11,
 //                MPI_COMM_WORLD,
-//                &status); // сверху (получение нулевой строки нулевого процесса)
+//                &status); // сверху (получение нулевой строки нулевого
+//                процесса)
 
-//       MPI_Recv(&Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()), 1, MPI_DOUBLE,
+//       MPI_Recv(&Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()), 1,
+//       MPI_DOUBLE,
 //                0, 12, MPI_COMM_WORLD,
-//                &status); // правый верхний узел (получение из нулевого процесса)
-//       MPI_Recv(&Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()), 1, MPI_DOUBLE,
+//                &status); // правый верхний узел (получение из нулевого
+//                процесса)
+//       MPI_Recv(&Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()), 1,
+//       MPI_DOUBLE,
 //                0, 13, MPI_COMM_WORLD,
-//                &status); // правый верхний узел (получение из нулевого процесса)
-//       MPI_Recv(&Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()), 1, MPI_DOUBLE,
+//                &status); // правый верхний узел (получение из нулевого
+//                процесса)
+//       MPI_Recv(&Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()), 1,
+//       MPI_DOUBLE,
 //                0, 14, MPI_COMM_WORLD,
-//                &status); // правый верхний узел (получение из нулевого процесса)
+//                &status); // правый верхний узел (получение из нулевого
+//                процесса)
 
 //       MPI_Recv(&Ex_local(-1, Ex_local.get_Ny()), 1, MPI_DOUBLE, 0, 15,
 //                MPI_COMM_WORLD,
-//                &status); // левый верхний узел (получение из нулевого процесса)
+//                &status); // левый верхний узел (получение из нулевого
+//                процесса)
 //       MPI_Recv(&Ey_local(-1, Ey_local.get_Ny()), 1, MPI_DOUBLE, 0, 16,
 //                MPI_COMM_WORLD,
-//                &status); // левый верхний узел (получение из нулевого процесса)
+//                &status); // левый верхний узел (получение из нулевого
+//                процесса)
 //       MPI_Recv(&Ez_local(-1, Ez_local.get_Ny()), 1, MPI_DOUBLE, 0, 17,
 //                MPI_COMM_WORLD,
-//                &status); // левый верхний узел (получение из нулевого процесса)
+//                &status); // левый верхний узел (получение из нулевого
+//                процесса)
 //     }
 
 //     if (mpi_comm_size == 1) {
@@ -991,7 +1069,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //         Ez_local(Ez_local.get_Nx(), y) = Ez_local(0, y);      // справа
 //       }
 //       Ex_local(-1, -1) = Ex_local(Ex_local.get_Nx() - 1,
-//                                   Ex_local.get_Ny() - 1); // левый нижний узел
+//                                   Ex_local.get_Ny() - 1); // левый нижний
+//                                   узел
 //       Ex_local(-1, Ex_local.get_Ny()) =
 //           Ex_local(Ex_local.get_Nx() - 1, 0); // левый верхний узел
 //       Ex_local(Ex_local.get_Nx(), Ex_local.get_Ny()) =
@@ -1000,7 +1079,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //           Ex_local(0, Ex_local.get_Ny() - 1); // правый нижний узел
 
 //       Ey_local(-1, -1) = Ey_local(Ey_local.get_Nx() - 1,
-//                                   Ey_local.get_Ny() - 1); // левый нижний узел
+//                                   Ey_local.get_Ny() - 1); // левый нижний
+//                                   узел
 //       Ey_local(-1, Ey_local.get_Ny()) =
 //           Ey_local(Ey_local.get_Nx() - 1, 0); // левый верхний узел
 //       Ey_local(Ey_local.get_Nx(), Ey_local.get_Ny()) =
@@ -1009,7 +1089,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //           Ey_local(0, Ey_local.get_Ny() - 1); // правый нижний узел
 
 //       Ez_local(-1, -1) = Ez_local(Ez_local.get_Nx() - 1,
-//                                   Ez_local.get_Ny() - 1); // левый нижний узел
+//                                   Ez_local.get_Ny() - 1); // левый нижний
+//                                   узел
 //       Ez_local(-1, Ez_local.get_Ny()) =
 //           Ez_local(Ez_local.get_Nx() - 1, 0); // левый верхний узел
 //       Ez_local(Ez_local.get_Nx(), Ez_local.get_Ny()) =
@@ -1024,65 +1105,67 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //         MPI_Sendrecv(Ex_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Ex_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 //         MPI_Sendrecv(Ey_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Ey_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 //         MPI_Sendrecv(Ez_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Ez_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 
 //         MPI_Sendrecv(Ex_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Ex_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //         MPI_Sendrecv(Ey_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Ey_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //         MPI_Sendrecv(Ez_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Ez_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //       } else if (rank == 0) {
 //         MPI_Sendrecv(Ex_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Ex_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 //         MPI_Sendrecv(Ey_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Ey_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
 //         MPI_Sendrecv(Ez_local.data() + Nx_local * (Ny_local - 2),
 //                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank,
 //                      Ez_local.data() + Nx_local * (Ny_local - 1),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank + 1,
-//                      MPI_COMM_WORLD, &status); // сверху получил-отправил
-//       } else                                   // if (rank == mpi_comm_size - 1)
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank + 1, rank +
+//                      1, MPI_COMM_WORLD, &status); // сверху получил-отправил
+//       } else                                   // if (rank == mpi_comm_size -
+//       1)
 //       {
 //         MPI_Sendrecv(Ex_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Ex_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //         MPI_Sendrecv(Ey_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Ey_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //         MPI_Sendrecv(Ez_local.data() + Nx_local, static_cast<int>(Nx_local),
 //                      MPI_DOUBLE, rank - 1, rank, Ez_local.data(),
-//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank - 1,
-//                      MPI_COMM_WORLD, &status); // снизу получил-отправил
+//                      static_cast<int>(Nx_local), MPI_DOUBLE, rank - 1, rank -
+//                      1, MPI_COMM_WORLD, &status); // снизу получил-отправил
 //       }
 //     }
 
-//     // ==============================================================================================================================================
+//     //
+//     ==============================================================================================================================================
 
 //     // for (i = 0; i < Nx_local; ++i)
 //     //   for (j = 0; j < Ny_local; ++j)
@@ -1101,7 +1184,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //               By_local(i, j, k) +
 //               C * B_dt *
 //                   ((Ez_local(i + 1, j, k) - Ez_local(i, j, k)) /
-//                    dx /*- (Ex_local(i, j, k + 1) - Ex_local(i, j, k)) / dz*/);
+//                    dx /*- (Ex_local(i, j, k + 1) - Ex_local(i, j, k)) /
+//                    dz*/);
 //           Bz_local(i, j, k) =
 //               Bz_local(i, j, k) +
 //               C * B_dt *
@@ -1118,7 +1202,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 
 //   else {
 //     localShiftedSize = Nx_local * (Ny_local - 2);
-//     std::cout << "localShiftedSize(drugie) = " << localShiftedSize << std::endl;
+//     std::cout << "localShiftedSize(drugie) = " << localShiftedSize <<
+//     std::endl;
 //   }
 //   std::vector<double> proc_buffer_Ex(localShiftedSize);
 //   std::vector<double> proc_buffer_Ey(localShiftedSize);
@@ -1139,12 +1224,14 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //   // Gather для нулевого процесса
 //   if (rank == 0) {
 //     // memcpy(Ex.data(), Ex_local.data(), proc_buffer_Ex.size() *
-//     // sizeof(double)); memcpy(Ey.data(), Ey_local.data(), proc_buffer_Ey.size()
+//     // sizeof(double)); memcpy(Ey.data(), Ey_local.data(),
+//     proc_buffer_Ey.size()
 //     // * sizeof(double)); memcpy(Ez.data(), Ez_local.data(),
 //     // proc_buffer_Ez.size() * sizeof(double));
 
 //     // memcpy(Bx.data(), Bx_local.data(), proc_buffer_Bx.size() *
-//     // sizeof(double)); memcpy(By.data(), By_local.data(), proc_buffer_By.size()
+//     // sizeof(double)); memcpy(By.data(), By_local.data(),
+//     proc_buffer_By.size()
 //     // * sizeof(double)); memcpy(Bz.data(), Bz_local.data(),
 //     // proc_buffer_Bz.size() * sizeof(double));
 
@@ -1163,7 +1250,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //            proc_buffer_Bz.size() * sizeof(double));
 //     // for (int i = 0; i < proc_buffer_By.size(); ++i)
 //     //{
-//     //   std::cout << "Bx_local[" << i << "]" << " = " << *(Bx_local.data() + i)
+//     //   std::cout << "Bx_local[" << i << "]" << " = " << *(Bx_local.data() +
+//     i)
 //     //   << std::endl;
 //     // }
 //   }
@@ -1225,22 +1313,30 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //               razmer.data(), displs_Gather.data(), MPI_DOUBLE, 0,
 //               MPI_COMM_WORLD);
 
-//   // MPI_Gather(proc_buffer_Ex.data(), static_cast<int>(proc_buffer_Ex.size()),
-//   // MPI_DOUBLE, Ex.data(), static_cast<int>(proc_buffer_Ex.size()), MPI_DOUBLE,
+//   // MPI_Gather(proc_buffer_Ex.data(),
+//   static_cast<int>(proc_buffer_Ex.size()),
+//   // MPI_DOUBLE, Ex.data(), static_cast<int>(proc_buffer_Ex.size()),
+//   MPI_DOUBLE,
 //   // 0, MPI_COMM_WORLD); MPI_Gather(proc_buffer_Ey.data(),
 //   // static_cast<int>(proc_buffer_Ey.size()), MPI_DOUBLE, Ey.data(),
 //   // static_cast<int>(proc_buffer_Ey.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//   // MPI_Gather(proc_buffer_Ez.data(), static_cast<int>(proc_buffer_Ez.size()),
-//   // MPI_DOUBLE, Ez.data(), static_cast<int>(proc_buffer_Ez.size()), MPI_DOUBLE,
+//   // MPI_Gather(proc_buffer_Ez.data(),
+//   static_cast<int>(proc_buffer_Ez.size()),
+//   // MPI_DOUBLE, Ez.data(), static_cast<int>(proc_buffer_Ez.size()),
+//   MPI_DOUBLE,
 //   // 0, MPI_COMM_WORLD);
 //   //
-//   // MPI_Gather(proc_buffer_Bx.data(), static_cast<int>(proc_buffer_Bx.size()),
-//   // MPI_DOUBLE, Bx.data(), static_cast<int>(proc_buffer_Bx.size()), MPI_DOUBLE,
+//   // MPI_Gather(proc_buffer_Bx.data(),
+//   static_cast<int>(proc_buffer_Bx.size()),
+//   // MPI_DOUBLE, Bx.data(), static_cast<int>(proc_buffer_Bx.size()),
+//   MPI_DOUBLE,
 //   // 0, MPI_COMM_WORLD); MPI_Gather(proc_buffer_By.data(),
 //   // static_cast<int>(proc_buffer_By.size()), MPI_DOUBLE, By.data(),
 //   // static_cast<int>(proc_buffer_By.size()), MPI_DOUBLE, 0, MPI_COMM_WORLD);
-//   // MPI_Gather(proc_buffer_Bz.data(), static_cast<int>(proc_buffer_Bz.size()),
-//   // MPI_DOUBLE, Bz.data(), static_cast<int>(proc_buffer_Bz.size()), MPI_DOUBLE,
+//   // MPI_Gather(proc_buffer_Bz.data(),
+//   static_cast<int>(proc_buffer_Bz.size()),
+//   // MPI_DOUBLE, Bz.data(), static_cast<int>(proc_buffer_Bz.size()),
+//   MPI_DOUBLE,
 //   // 0, MPI_COMM_WORLD);
 //   MPI_Barrier(MPI_COMM_WORLD);
 //   std::cout << "We are HERE!\n" << std::endl;
@@ -1278,13 +1374,18 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //   //     for (j = 0; j < Ny; ++j)
 //   //       for (k = 0; k < Nz; ++k)
 //   //       {
-//   //         Bx(i, j, k) = Bx(i, j, k) + C * B_dt * (/*(Ey(i, j, k + 1) - Ey(i,
-//   //         j, k)) / dz*/ - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy); By(i, j, k)
+//   //         Bx(i, j, k) = Bx(i, j, k) + C * B_dt * (/*(Ey(i, j, k + 1) -
+//   Ey(i,
+//   //         j, k)) / dz*/ - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy); By(i, j,
+//   k)
 //   //         = By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx
-//   //         /*- (Ex(i, j, k + 1) - Ex(i, j, k)) / dz*/); Bz(i, j, k) = Bz(i, j,
-//   //         k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1,
+//   //         /*- (Ex(i, j, k + 1) - Ex(i, j, k)) / dz*/); Bz(i, j, k) = Bz(i,
+//   j,
+//   //         k) + C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i +
+//   1,
 //   //         j, k) - Ey(i, j, k)) / dx);
-//   //         //std::cout << "i = " << i << " j = " << j << " k = " << k << '\n';
+//   //         //std::cout << "i = " << i << " j = " << j << " k = " << k <<
+//   '\n';
 //   //       }
 //   //   // Обновляю границу - верх 2-х мерной системы
 //   //   for (int64_t x = 0; x < Bx.get_Nx(); ++x)
@@ -1312,29 +1413,36 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //   //  Bx(-1, -1) = Bx(Bx.get_Nx() - 1, Bx.get_Ny() - 1); // левый нижний узел
 //   //  Bx(-1, Bx.get_Ny()) = Bx(Bx.get_Nx() - 1, 0); // левый верхний узел
 //   //  Bx(Bx.get_Nx(), Bx.get_Ny()) = Bx(0, 0); // правый верхний узел
-//   //  *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // правый нижний
+//   //  *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 
 //   //  By(-1, -1) = By(By.get_Nx() - 1, By.get_Ny() - 1); // левый нижний узел
 //   //  By(-1, By.get_Ny()) = By(By.get_Nx() - 1, 0); // левый верхний узел
 //   //  By(By.get_Nx(), By.get_Ny()) = By(0, 0); // правый верхний узел
-//   //  *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // правый нижний
+//   //  *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 
 //   //  Bz(-1, -1) = Bz(Bz.get_Nx() - 1, Bz.get_Ny() - 1); // левый нижний узел
 //   //  Bz(-1, Bz.get_Ny()) = Bz(Bz.get_Nx() - 1, 0); // левый верхний узел
 //   //  Bz(Bz.get_Nx(), Bz.get_Ny()) = Bz(0, 0); // правый верхний узел
-//   //  *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // правый нижний
+//   //  *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 
 //   //  for (i = 0ull; i < Nx; ++i)
 //   //    for (j = 0ull; j < Ny; ++j)
 //   //      for (k = 0ull; k < Nz; ++k)
 //   //      {
-//   //        Ex(i, j, k) = Ex(i, j, k) + C * E_dt * ((Bz(i, j, k) - Bz(i, j - 1,
-//   //        k)) / dy /*- (By(i, j, k) - By(i, j, k - 1)) / dz*/); Ey(i, j, k) =
-//   //        Ey(i, j, k) + C * E_dt * (/*(Bx(i, j, k) - Bx(i, j, k - 1)) / dz*/ -
-//   //        (Bz(i, j, k) - Bz(i - 1, j, k)) / dx); Ez(i, j, k) = Ez(i, j, k) + C
+//   //        Ex(i, j, k) = Ex(i, j, k) + C * E_dt * ((Bz(i, j, k) - Bz(i, j -
+//   1,
+//   //        k)) / dy /*- (By(i, j, k) - By(i, j, k - 1)) / dz*/); Ey(i, j, k)
+//   =
+//   //        Ey(i, j, k) + C * E_dt * (/*(Bx(i, j, k) - Bx(i, j, k - 1)) /
+//   dz*/ -
+//   //        (Bz(i, j, k) - Bz(i - 1, j, k)) / dx); Ez(i, j, k) = Ez(i, j, k)
+//   + C
 //   //        * E_dt * ((By(i, j, k) - By(i - 1, j, k)) / dx - (Bx(i, j, k) -
 //   //        Bx(i, j - 1, k)) / dy);
 //   //      }
@@ -1364,30 +1472,38 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //   //  Ex(-1, -1) = Ex(Ex.get_Nx() - 1, Ex.get_Ny() - 1); // левый нижний узел
 //   //  Ex(-1, Ex.get_Ny()) = Ex(Ex.get_Nx() - 1, 0); // левый верхний узел
 //   //  Ex(Ex.get_Nx(), Ex.get_Ny()) = Ex(0, 0); // правый верхний узел
-//   //  *(Ex.data() + Ex.get_Nx() + 1) = Ex(0, Ex.get_Ny() - 1); // правый нижний
+//   //  *(Ex.data() + Ex.get_Nx() + 1) = Ex(0, Ex.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 
 //   //  Ey(-1, -1) = Ey(Ey.get_Nx() - 1, Ey.get_Ny() - 1); // левый нижний узел
 //   //  Ey(-1, Ey.get_Ny()) = Ey(Ey.get_Nx() - 1, 0); // левый верхний узел
 //   //  Ey(Ey.get_Nx(), Ey.get_Ny()) = Ey(0, 0); // правый верхний узел
-//   //  *(Ey.data() + Ey.get_Nx() + 1) = Ey(0, Ey.get_Ny() - 1); // правый нижний
+//   //  *(Ey.data() + Ey.get_Nx() + 1) = Ey(0, Ey.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 
 //   //  Ez(-1, -1) = Ez(Ez.get_Nx() - 1, Ez.get_Ny() - 1); // левый нижний узел
 //   //  Ez(-1, Ez.get_Ny()) = Ez(Ez.get_Nx() - 1, 0); // левый верхний узел
 //   //  Ez(Ez.get_Nx(), Ez.get_Ny()) = Ez(0, 0); // правый верхний узел
-//   //  *(Ez.data() + Ez.get_Nx() + 1) = Ez(0, Ez.get_Ny() - 1); // правый нижний
+//   //  *(Ez.data() + Ez.get_Nx() + 1) = Ez(0, Ez.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 
 //   //  for (i = 0ull; i < Nx; ++i)
 //   //    for (j = 0ull; j < Ny; ++j)
 //   //      for (k = 0ull; k < Nz; ++k)
 //   //      {
-//   //        Bx(i, j, k) = Bx(i, j, k) + C * B_dt * (/*(Ey(i, j, k + 1) - Ey(i,
-//   //        j, k)) / dz*/ - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy); By(i, j, k) =
-//   //        By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx /*-
-//   //        (Ex(i, j, k + 1) - Ex(i, j, k)) / dz*/); Bz(i, j, k) = Bz(i, j, k) +
-//   //        C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j, k)
+//   //        Bx(i, j, k) = Bx(i, j, k) + C * B_dt * (/*(Ey(i, j, k + 1) -
+//   Ey(i,
+//   //        j, k)) / dz*/ - (Ez(i, j + 1, k) - Ez(i, j, k)) / dy); By(i, j,
+//   k) =
+//   //        By(i, j, k) + C * B_dt * ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx
+//   /*-
+//   //        (Ex(i, j, k + 1) - Ex(i, j, k)) / dz*/); Bz(i, j, k) = Bz(i, j,
+//   k) +
+//   //        C * B_dt * ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy - (Ey(i + 1, j,
+//   k)
 //   //        - Ey(i, j, k)) / dx);
 //   //      }
 //   //  // Обновляю границу - верх 2-х мерной системы
@@ -1416,25 +1532,27 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //   //  Bx(-1, -1) = Bx(Bx.get_Nx() - 1, Bx.get_Ny() - 1); // левый нижний узел
 //   //  Bx(-1, Bx.get_Ny()) = Bx(Bx.get_Nx() - 1, 0); // левый верхний узел
 //   //  Bx(Bx.get_Nx(), Bx.get_Ny()) = Bx(0, 0); // правый верхний узел
-//   //  *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // правый нижний
+//   //  *(Bx.data() + Bx.get_Nx() + 1) = Bx(0, Bx.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 
 //   //  By(-1, -1) = By(By.get_Nx() - 1, By.get_Ny() - 1); // левый нижний узел
 //   //  By(-1, By.get_Ny()) = By(By.get_Nx() - 1, 0); // левый верхний узел
 //   //  By(By.get_Nx(), By.get_Ny()) = By(0, 0); // правый верхний узел
-//   //  *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // правый нижний
+//   //  *(By.data() + By.get_Nx() + 1) = By(0, By.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 
 //   //  Bz(-1, -1) = Bz(Bz.get_Nx() - 1, Bz.get_Ny() - 1); // левый нижний узел
 //   //  Bz(-1, Bz.get_Ny()) = Bz(Bz.get_Nx() - 1, 0); // левый верхний узел
 //   //  Bz(Bz.get_Nx(), Bz.get_Ny()) = Bz(0, 0); // правый верхний узел
-//   //  *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // правый нижний
+//   //  *(Bz.data() + Bz.get_Nx() + 1) = Bz(0, Bz.get_Ny() - 1); // правый
+//   нижний
 //   //  узел
 //   //}
 
 //   // #endif // MPI
 // }
-
 
 void FDTD::FDTD::write_fields_to_file(const char *path, const Component E,
                                       const Component B, const double delta,
@@ -1509,13 +1627,13 @@ Axis FDTD::FDTD::get_axis(const Component E, const Component B) {
   }
 }
 
-
 void FDTD::FDTD::boundary_synchronization(/*Сюда добавить поля*/) {
   // Синхронизация границ для 2д случая
   // Угловые узлы обрабатываются сразу, а не отдельно
 
   // Слева (за исключением угловых узлов)
-  for (int64_t y{0}; y < Ny; ++y) {
+#pragma omp for
+  for (int64_t y = 0; y < Ny; ++y) {
     Ex(-1, y) = Ex(Nx - 1, y);
     Ey(-1, y) = Ey(Nx - 1, y);
     Ez(-1, y) = Ez(Nx - 1, y);
@@ -1524,7 +1642,8 @@ void FDTD::FDTD::boundary_synchronization(/*Сюда добавить поля*/
     Bz(-1, y) = Bz(Nx - 1, y);
   }
   // Справа (за исключением угловых узлов)
-  for (int64_t y{0}; y < Ny; ++y) {
+#pragma omp for
+  for (int64_t y = 0; y < Ny; ++y) {
     Ex(Nx, y) = Ex(0, y);
     Ey(Nx, y) = Ey(0, y);
     Ez(Nx, y) = Ez(0, y);
@@ -1532,8 +1651,8 @@ void FDTD::FDTD::boundary_synchronization(/*Сюда добавить поля*/
     By(Nx, y) = By(0, y);
     Bz(Nx, y) = Bz(0, y);
   }
-  // Верх (с угловыми узлами)
-  for (int64_t x{-1}; x < Nx + 1; ++x) {
+#pragma omp for
+  for (int64_t x = -1; x < Nx + 1; ++x) {
     Ex(x, Ny) = Ex(x, 0);
     Ey(x, Ny) = Ey(x, 0);
     Ez(x, Ny) = Ez(x, 0);
@@ -1542,7 +1661,8 @@ void FDTD::FDTD::boundary_synchronization(/*Сюда добавить поля*/
     Bz(x, Ny) = Bz(x, 0);
   }
   // Низ (с угловыми узлами)
-  for (int64_t x{-1}; x < Nx + 1; ++x) {
+#pragma omp for
+  for (int64_t x = -1; x < Nx + 1; ++x) {
     Ex(x, -1) = Ex(x, Ny - 1);
     Ey(x, -1) = Ey(x, Ny - 1);
     Ez(x, -1) = Ez(x, Ny - 1);
@@ -1557,29 +1677,19 @@ void FDTD::FDTD::boundary_synchronization_3D() {
   а также отдельно без цикла добавлена синхронизация нижней и верхней граней \
   относительно Oz.
 
-  // auto func = [&](){
-  //   for (int64_t i{0}; i < Bx.fullsize(); ++i) {
-  //     if (std::fabs(Bx.get_field()[i] - Bx.get_field()[i]) > 1e-3) {
-  //       std::cout << "Bx[" << i << "] = " << Bx.get_field()[i] << std::endl;
-  //       exit(-1);
-  //     }
-
-  //   }
-  // };
-
-
-  // Для самого нижнего -1 и верхнего Nz + 1 яруса, необходимо сначала сам центр синхронизировать,
-  // а затем уже боковые узлы, так как они зависят от центра.
+  // Для самого нижнего -1 и верхнего Nz + 1 яруса, необходимо сначала сам центр
+  // синхронизировать, а затем уже боковые узлы, так как они зависят от центра.
 
   // ========================================================================
 
-// ОБНОВЛЕНИЕ НИЖНЕЙ ГРАНИЦЫ ОТНОСИТЕЛЬНО Oz
-// Отдельно угловые узлы в этом случае не обрабатываю, так как \
+  // ОБНОВЛЕНИЕ НИЖНЕЙ ГРАНИЦЫ ОТНОСИТЕЛЬНО Oz
+   // Отдельно угловые узлы в этом случае не обрабатываю, так как \
 если обновить бока (слева и справа), то для угловых узлов будет всё включено
 
   // Центр нижней грани
-  for (int64_t x{0}; x < Nx; ++x) {
-    for (int64_t y{0}; y < Ny; ++y) {
+#pragma omp for collapse(2)
+  for (int64_t x = 0; x < Nx; ++x) {
+    for (int64_t y = 0; y < Ny; ++y) {
       Ex(x, y, -1) = Ex(x, y, Nz - 1);
       Ey(x, y, -1) = Ey(x, y, Nz - 1);
       Ez(x, y, -1) = Ez(x, y, Nz - 1);
@@ -1590,7 +1700,8 @@ void FDTD::FDTD::boundary_synchronization_3D() {
   }
   // Здесь вот не на 100% уверен насчёт Nz - 1, но вроде так
   // Слева нижней грани (за исключением угловых узлов)
-  for (int64_t y{0}; y < Ny; ++y) {
+#pragma omp for
+  for (int64_t y = 0; y < Ny; ++y) {
     Ex(-1, y, -1) = Ex(Nx - 1, y, Nz - 1);
     Ey(-1, y, -1) = Ey(Nx - 1, y, Nz - 1);
     Ez(-1, y, -1) = Ez(Nx - 1, y, Nz - 1);
@@ -1599,7 +1710,8 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     Bz(-1, y, -1) = Bz(Nx - 1, y, Nz - 1);
   }
   // Справа нижней грани (за исключением угловых узлов)
-  for (int64_t y{0}; y < Ny; ++y) {
+#pragma omp for
+  for (int64_t y = 0; y < Ny; ++y) {
     Ex(Nx, y, -1) = Ex(0, y, Nz - 1);
     Ey(Nx, y, -1) = Ey(0, y, Nz - 1);
     Ez(Nx, y, -1) = Ez(0, y, Nz - 1);
@@ -1608,7 +1720,8 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     Bz(Nx, y, -1) = Bz(0, y, Nz - 1);
   }
   // Верх нижней грани (с учётом угловых узлов)
-  for (int64_t x{-1}; x < Nx + 1; ++x) {
+#pragma omp for
+  for (int64_t x = -1; x < Nx + 1; ++x) {
     Ex(x, Ny, -1) = Ex(x, 0, Nz - 1);
     Ey(x, Ny, -1) = Ey(x, 0, Nz - 1);
     Ez(x, Ny, -1) = Ez(x, 0, Nz - 1);
@@ -1617,7 +1730,8 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     Bz(x, Ny, -1) = Bz(x, 0, Nz - 1);
   }
   // Низ нижней грани (с учётом угловых узлов)
-  for (int64_t x{-1}; x < Nx + 1; ++x) {
+#pragma omp for
+  for (int64_t x = -1; x < Nx + 1; ++x) {
     Ex(x, -1, -1) = Ex(x, Ny - 1, Nz - 1);
     Ey(x, -1, -1) = Ey(x, Ny - 1, Nz - 1);
     Ez(x, -1, -1) = Ez(x, Ny - 1, Nz - 1);
@@ -1629,8 +1743,9 @@ void FDTD::FDTD::boundary_synchronization_3D() {
   // ОБНОВЛЕНИЕ ВЕРХНЕЙ ГРАНИЦЫ ОТНОСИТЕЛЬНО Oz
 
   // Центр верхней грани
-  for (int64_t x{0}; x < Nx; ++x) {
-    for (int64_t y{0}; y < Ny; ++y) {
+#pragma omp for collapse(2)
+  for (int64_t x = 0; x < Nx; ++x) {
+    for (int64_t y = 0; y < Ny; ++y) {
       Ex(x, y, Nz) = Ex(x, y, 0);
       Ey(x, y, Nz) = Ey(x, y, 0);
       Ez(x, y, Nz) = Ez(x, y, 0);
@@ -1640,7 +1755,8 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     }
   }
   // Слева верхней грани (за исключением угловых узлов)
-  for (int64_t y{0}; y < Ny; ++y) {
+#pragma omp for
+  for (int64_t y = 0; y < Ny; ++y) {
     Ex(-1, y, Nz) = Ex(Nx - 1, y, 0);
     Ey(-1, y, Nz) = Ey(Nx - 1, y, 0);
     Ez(-1, y, Nz) = Ez(Nx - 1, y, 0);
@@ -1649,7 +1765,8 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     Bz(-1, y, Nz) = Bz(Nx - 1, y, 0);
   }
   // Справа верхней грани (за исключением угловых узлов)
-  for (int64_t y{0}; y < Ny; ++y) {
+#pragma omp for
+  for (int64_t y = 0; y < Ny; ++y) {
     Ex(Nx, y, Nz) = Ex(0, y, 0);
     Ey(Nx, y, Nz) = Ey(0, y, 0);
     Ez(Nx, y, Nz) = Ez(0, y, 0);
@@ -1658,7 +1775,8 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     Bz(Nx, y, Nz) = Bz(0, y, 0);
   }
   // Верх верхней грани (с учётом угловых узлов)
-  for (int64_t x{-1}; x < Nx + 1; ++x) {
+#pragma omp for
+  for (int64_t x = -1; x < Nx + 1; ++x) {
     Ex(x, Ny, Nz) = Ex(x, 0, 0);
     Ey(x, Ny, Nz) = Ey(x, 0, 0);
     Ez(x, Ny, Nz) = Ez(x, 0, 0);
@@ -1667,7 +1785,8 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     Bz(x, Ny, Nz) = Bz(x, 0, 0);
   }
   // Низ верхней грани (с учётом угловых узлов)
-  for (int64_t x{-1}; x < Nx + 1; ++x) {
+#pragma omp for
+  for (int64_t x = -1; x < Nx + 1; ++x) {
     Ex(x, -1, Nz) = Ex(x, Ny - 1, 0);
     Ey(x, -1, Nz) = Ey(x, Ny - 1, 0);
     Ez(x, -1, Nz) = Ez(x, Ny - 1, 0);
@@ -1678,13 +1797,14 @@ void FDTD::FDTD::boundary_synchronization_3D() {
 
   // ========================================================================
   // Синхронизация границ для 2д случая
-    // for (int64_t z{-1}; z < Nz + 1; ++z) { странно. Вроде как должно быть 0, Nz
-    // Щас попробую так
+  // for (int64_t z{-1}; z < Nz + 1; ++z) { странно. Вроде как должно быть 0, Nz
+  // Щас попробую так
 
   // for (int64_t z{-1}; z < Nz + 1; ++z) {
-  for (int64_t z{0}; z < Nz; ++z) {
+#pragma omp for
+  for (int64_t z = 0; z < Nz; ++z) {
     // Слева 2D (за исключением угловых узлов)
-    for (int64_t y{0}; y < Ny; ++y) {
+    for (int64_t y = 0; y < Ny; ++y) {
       Ex(-1, y, z) = Ex(Nx - 1, y, z);
       Ey(-1, y, z) = Ey(Nx - 1, y, z);
       Ez(-1, y, z) = Ez(Nx - 1, y, z);
@@ -1693,7 +1813,7 @@ void FDTD::FDTD::boundary_synchronization_3D() {
       Bz(-1, y, z) = Bz(Nx - 1, y, z);
     }
     // Справа 2D (за исключением угловых узлов)
-    for (int64_t y{0}; y < Ny; ++y) {
+    for (int64_t y = 0; y < Ny; ++y) {
       Ex(Nx, y, z) = Ex(0, y, z);
       Ey(Nx, y, z) = Ey(0, y, z);
       Ez(Nx, y, z) = Ez(0, y, z);
@@ -1702,7 +1822,7 @@ void FDTD::FDTD::boundary_synchronization_3D() {
       Bz(Nx, y, z) = Bz(0, y, z);
     }
     // Верх 2D (с учётом угловых узлов)
-    for (int64_t x{-1}; x < Nx + 1; ++x) {
+    for (int64_t x = -1; x < Nx + 1; ++x) {
       Ex(x, Ny, z) = Ex(x, 0, z);
       Ey(x, Ny, z) = Ey(x, 0, z);
       Ez(x, Ny, z) = Ez(x, 0, z);
@@ -1711,7 +1831,7 @@ void FDTD::FDTD::boundary_synchronization_3D() {
       Bz(x, Ny, z) = Bz(x, 0, z);
     }
     // Низ 2D (с учётом угловых узлов)
-    for (int64_t x{-1}; x < Nx + 1; ++x) {
+    for (int64_t x = -1; x < Nx + 1; ++x) {
       Ex(x, -1, z) = Ex(x, Ny - 1, z);
       Ey(x, -1, z) = Ey(x, Ny - 1, z);
       Ez(x, -1, z) = Ez(x, Ny - 1, z);
@@ -1720,5 +1840,4 @@ void FDTD::FDTD::boundary_synchronization_3D() {
       Bz(x, -1, z) = Bz(x, Ny - 1, z);
     }
   }
-
 }

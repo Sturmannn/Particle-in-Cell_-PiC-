@@ -78,17 +78,30 @@ TEST(Test_version_comparison, shifted_OZ) {
       (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
 
   dt = 0.25 * dx / C;
-  int64_t t = 55; // Задание количества итераций
+  int64_t t = 250; // Задание количества итераций
 
   Component E = Component::Ey;
   Component B = Component::Bx;
   Shift shift = Shift::shifted;
 
+
   FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
   Test_obj test(E, B, std::move(field));
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);
+
+
+    #pragma omp parallel
+    {
+       std::cout << "Number of threads: " << omp_get_num_threads() << std::endl;
+    }
+  std::cout << omp_get_num_procs() << std::endl;
+
+
+
+
   test.numerical_solution(t, shift);
+
 
     Field::ComputingField::clear_file(path_to_calculated_data);
     Field::ComputingField::clear_file(path_to_analytic_data);
@@ -114,8 +127,11 @@ TEST(Test_version_comparison, shifted_OZ) {
   FDTD::FDTD field_2(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
   Test_obj other_test(E,B, std::move(field_2));
   other_test.analytical_default_solution(E, B, t * dt, shift);
+    double start_time = omp_get_wtime();
   other_test.set_default_field(E, B, shift);
+    double end_time = omp_get_wtime();
   other_test.numerical_solution(t, shift); // t для без сдвигов, а t * dt для сдвигов (не так...Учёт идёт в int/double)
+  std::cout << "Time = " << end_time - start_time << std::endl;
   test.print_convergence(other_test);
 
   int rank = 0;

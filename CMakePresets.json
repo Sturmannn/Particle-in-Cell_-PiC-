@@ -14,7 +14,6 @@
           "CMAKE_C_COMPILER": "clang",
           "CMAKE_CXX_COMPILER": "clang++",
           "CMAKE_LINKER": "lld",
-          "CMAKE_CXX_FLAGS": "-fopenmp",
           "CMAKE_LIBRARY_PATH": "H:/Programs/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/lib",
           "CMAKE_COLOR_DIAGNOSTICS": "ON",
           "CMAKE_BUILD_TYPE": "Debug"
@@ -29,7 +28,6 @@
           "CMAKE_C_COMPILER": "clang",
           "CMAKE_CXX_COMPILER": "clang++",
           "CMAKE_LINKER": "lld",
-          "CMAKE_CXX_FLAGS": "-fopenmp",
           "CMAKE_LIBRARY_PATH": "H:/Programs/Microsoft Visual Studio/2022/Community/VC/Tools/Llvm/x64/lib",
           "CMAKE_COLOR_DIAGNOSTICS": "ON",
           "CMAKE_BUILD_TYPE": "Release"
