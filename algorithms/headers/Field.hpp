@@ -3,7 +3,6 @@
 
 #include <fstream>
 #include <iostream>
-#include <omp.h>
 #include <vector>
 
 constexpr const char *path_to_analytic_data = PATH_TO_ANALYTICAL_DATA;

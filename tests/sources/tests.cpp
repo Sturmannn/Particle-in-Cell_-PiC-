@@ -122,9 +122,9 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
 
     switch (std::get<0>(axis_1))
     {
-    case Axis::Ox: i = &axis_1_counter; j = &axis_1_counter; k = &axis_1_counter; break;
-    case Axis::Oy: j = &axis_1_counter; i = &axis_1_counter; k = &axis_1_counter; break;
-    case Axis::Oz: k = &axis_1_counter; i = &axis_1_counter; j = &axis_1_counter; break;
+    case Axis::Ox: i = &axis_1_counter; break;
+    case Axis::Oy: j = &axis_1_counter; break;
+    case Axis::Oz: k = &axis_1_counter; break;
     default: break;
     }
     switch (std::get<0>(axis_2))
@@ -154,7 +154,7 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
           B_field(*i, *j, *k) =
             sin(2.0 * PI * (coordinate + delta_coordinate * coeff - ai_bi.first - sign * C * t) /
               (ai_bi.second - ai_bi.first));
-          //std::cout << "i = " << *i << " j = " << *j << " k = " << *k << '\n';
+          // std::cout << "i = " << *i << " j = " << *j << " k = " << *k << '\n';
         }
     boundary_synchronization();
   };

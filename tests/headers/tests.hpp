@@ -62,7 +62,7 @@ private:
                                                           std::tuple<Axis, int64_t, int64_t>)> loop_function);
 };
 
-TEST(Test_version_comparison, shifted_OY) {
+TEST(Test_version_comparison, shifted_OZ) {
   std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 16};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
@@ -80,16 +80,16 @@ TEST(Test_version_comparison, shifted_OY) {
   dt = 0.25 * dx / C;
   int64_t t = 55; // Задание количества итераций
 
-  Component E = Component::Ex;
-  Component B = Component::By;
+  Component E = Component::Ey;
+  Component B = Component::Bx;
   Shift shift = Shift::shifted;
 
   FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
   Test_obj test(E, B, std::move(field));
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);
-
   test.numerical_solution(t, shift);
+
     Field::ComputingField::clear_file(path_to_calculated_data);
     Field::ComputingField::clear_file(path_to_analytic_data);
 
@@ -121,20 +121,16 @@ TEST(Test_version_comparison, shifted_OY) {
   int rank = 0;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   if (rank == 0) {
-    Field::ComputingField::clear_file(path_to_calculated_data);
-    Field::ComputingField::clear_file(path_to_analytic_data);
+    // Field::ComputingField::clear_file(path_to_calculated_data);
+    // Field::ComputingField::clear_file(path_to_analytic_data);
 
-    test.get_field().write_fields_to_file(path_to_calculated_data, E, B,
-                                    test.get_delta_space());
-    test.get_analytical_field().write_fields_to_file(path_to_analytic_data, E, B,
-                                               test.get_delta_space());
+    // test.get_field().write_fields_to_file(path_to_calculated_data, E, B,
+    //                                 test.get_delta_space());
+    // test.get_analytical_field().write_fields_to_file(path_to_analytic_data, E, B,
+    //                                            test.get_delta_space());
   }
 
   std::cout << "OK" << std::endl;
-  // test.field.write_fields_to_file_OX(path_to_calculated_data,
-  // test.field.get_dx());
-  // test.analytical_field.write_fields_to_file_OX(path_to_analytic_data,
-  // test.field.get_dx());
 }
 
 // TEST(Test, unshifted_field_test_several_iterations_2d) {

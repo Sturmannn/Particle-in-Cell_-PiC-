@@ -2,6 +2,7 @@
 #define __FDTD_HPP__
 
 #include <cmath>
+#include <omp.h>
 #include <mpi.h>
 #include <tuple>
 

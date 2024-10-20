@@ -209,16 +209,9 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
   int64_t j{0};
   int64_t k{k_value};
 
-  // auto func = [&]() -> bool {
-  //   for (int64_t i{ 0 }; i < Bx.fullsize(); ++i) {
-  //     if (std::fabs(Bx.get_field()[i]) > 1e-30) {
-  //       std::cout << "Bx[" << i << "] = " << Bx.get_field()[i] << std::endl;
-  //       return true;
-  //     }
-
-  //   }
-  //   };
-  // std::cout << "Before Bx" << std::endl;
+  auto get_index = [](int64_t i, int64_t j, int64_t k, int64_t Nx, int64_t Ny) {
+    return (Nx + 2) * (Ny + 2) * (k + 1) + (Nx + 2) * (j + 1) + (i + 1);
+  };
 
   // for (double time = 0.0; time < t; time += E_dt) // ПОПРАВИТЬ НА time += E_dt
   if (Nz < 2) {
@@ -259,13 +252,22 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
           By(i, j, k) = By(i, j, k) + C * B_dt *
                                           ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx -
                                            (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+          // if ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy != 0) {
+          //   std::cout << (Ex(i, j + 1, k) - Ex(i, j, k)) / dy << std::endl;
+          //   std::cout << i << " " << j << " " << k << std::endl;
+          //   exit(-1);
+          // }
+          int64_t index_Ex = get_index(i, j + 1, k, Nx, Ny);
+          int64_t index_Ex_2 = get_index(i, j, k, Nx, Ny);
+          //std::cout << "Ex[" << index_Ex << "] " << Ex(i, j + 1, k) << '\n' << "Ex[" << index_Ex_2 << "] " << Ex(i, j, k) << std::endl;
+
+          int64_t index_Ey = get_index(i + 1, j, k, Nx, Ny);
+          int64_t index_Ey_2 = get_index(i, j, k, Nx, Ny);
+          //std::cout << "Ey[" << index_Ey << "] " << Ey(i + 1, j, k) << '\n' << "Ey[" << index_Ey_2 << "] " << Ey(i, j, k) << std::endl;
+          
           Bz(i, j, k) = Bz(i, j, k) + C * B_dt *
                                           ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
                                            (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
-          //if (func() == true) {
-          //  std::cout << "Bx[" << i << ", " << j << ", " << k << "] = " << Bx(i, j, k) << std::endl;
-          //  exit(-1);
-          //}
         }
       boundary_synchronization_3D();
       for (i = 0; i < Nx; ++i)
@@ -1674,7 +1676,13 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     Bz(x, -1, Nz) = Bz(x, Ny - 1, 0);
   }
 
-  for (int64_t z{-1}; z < Nz + 1; ++z) {
+  // ========================================================================
+  // Синхронизация границ для 2д случая
+    // for (int64_t z{-1}; z < Nz + 1; ++z) { странно. Вроде как должно быть 0, Nz
+    // Щас попробую так
+
+  // for (int64_t z{-1}; z < Nz + 1; ++z) {
+  for (int64_t z{0}; z < Nz; ++z) {
     // Слева 2D (за исключением угловых узлов)
     for (int64_t y{0}; y < Ny; ++y) {
       Ex(-1, y, z) = Ex(Nx - 1, y, z);
@@ -1695,12 +1703,12 @@ void FDTD::FDTD::boundary_synchronization_3D() {
     }
     // Верх 2D (с учётом угловых узлов)
     for (int64_t x{-1}; x < Nx + 1; ++x) {
-      Ex(x, Ny, z) = Ex(x, 0);
-      Ey(x, Ny, z) = Ey(x, 0);
-      Ez(x, Ny, z) = Ez(x, 0);
-      Bx(x, Ny, z) = Bx(x, 0);
-      By(x, Ny, z) = By(x, 0);
-      Bz(x, Ny, z) = Bz(x, 0);
+      Ex(x, Ny, z) = Ex(x, 0, z);
+      Ey(x, Ny, z) = Ey(x, 0, z);
+      Ez(x, Ny, z) = Ez(x, 0, z);
+      Bx(x, Ny, z) = Bx(x, 0, z);
+      By(x, Ny, z) = By(x, 0, z);
+      Bz(x, Ny, z) = Bz(x, 0, z);
     }
     // Низ 2D (с учётом угловых узлов)
     for (int64_t x{-1}; x < Nx + 1; ++x) {
