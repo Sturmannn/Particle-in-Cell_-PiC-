@@ -1,31 +1,47 @@
 // {
 //     "version": "0.2.0",
 //     "configurations": [
-//         {
-//             "name": "C/C++: clang++.exe сборка и отладка активного файла",
-//             "type": "cppdbg",
-//             "request": "launch",
-//             "program": "${fileDirname}\\${fileBasenameNoExtension}.exe",
-//             "args": [],
-//             "stopAtEntry": false,
-//             "cwd": "h:\\Programs\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin",
-//             "environment": [],
-//             "externalConsole": false,
-//             "MIMode": "lldb",
-//             "miDebuggerPath": "h:\\Programs\\Microsoft Visual Studio\\2022\\Community\\VC\\Tools\\Llvm\\x64\\bin\\lldb.exe",
-//             "setupCommands": [
-//                 {
-//                     "description": "Включить автоматическое форматирование для gdb",
-//                     "text": "-enable-pretty-printing",
-//                     "ignoreFailures": true
-//                 },
-//                 {
-//                     "description": "Задать для варианта приложения дизассемблирования значение Intel",
-//                     "text": "-gdb-set disassembly-flavor intel",
-//                     "ignoreFailures": true
-//                 }
-//             ],
-//             "preLaunchTask": "C/C++: clang++.exe сборка активного файла"
-//         }
+//        {
+//           "name": "Launch Tests",
+//           "type": "cppdbg",
+//           "request": "launch",
+//         //   "program": "${workspaceFolder}/build/Tests", // путь к исполняемому файлу Tests
+//           "program": "${command:cmake.launchTargetPath}",
+//           "args": [], // аргументы командной строки, если требуются
+//           "stopAtEntry": false,
+//           "cwd": "${workspaceFolder}",
+//           "environment": [],
+//           "externalConsole": false,
+//           "MIMode": "lldb", // или gdb, если вы используете его
+//           "setupCommands": [
+//              {
+//                 "description": "Enable pretty-printing for gdb",
+//                 "text": "-enable-pretty-printing",
+//                 "ignoreFailures": true
+//              }
+//           ],
+//           "preLaunchTask": "build" // или другое имя задачи, которая собирает проект
+//        }
 //     ]
-// }
+//  }
+
+ {
+    "version": "0.2.0",
+    "configurations": [
+       {
+          "name": "Run MPI Program",
+          "type": "cppvsdbg", // Используется для запуска без отладки
+          "request": "launch",
+          "program": "mpiexec.exe",
+          "args": [
+             "-np", "4", // количество процессов
+             "${command:cmake.launchTargetPath}" // путь к вашему исполняемому файлу
+          ],
+          "cwd": "${workspaceFolder}",
+          "stopAtEntry": false,
+          "console": "integratedTerminal" // или "externalTerminal", если нужно
+       }
+    ]
+ }
+ 
+ 

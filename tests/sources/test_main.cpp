@@ -9,6 +9,13 @@ int main(int argc, char** argv) {
   int status = RUN_ALL_TESTS();
   MPI_Finalize();
   
+  if (status != 0) {
+    std::cerr << "Tests failed!" << std::endl;
+  }
+  else {
+    std::cout << "Tests passed!" << std::endl;
+  }
+  
   return status;
 
 }

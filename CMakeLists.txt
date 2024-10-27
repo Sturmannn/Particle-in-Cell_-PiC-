@@ -54,3 +54,11 @@ elseif (OpenMP_CXX_FOUND)
     target_compile_options(${ALG_TARGET_NAME} PRIVATE -fopenmp)
     target_compile_options(${TEST_TARGET_NAME} PRIVATE -fopenmp)
 endif()
+
+# # Задача для запуска
+# add_custom_target(run
+#     COMMAND mpiexec -np 4 $<TARGET_FILE:Tests>
+#     DEPENDS Tests
+#     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+#     COMMENT "Running Tests with MPI"
+# )
