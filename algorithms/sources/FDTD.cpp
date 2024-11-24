@@ -3,7 +3,8 @@
 
 FDTD::FDTD::FDTD(const std::tuple<int64_t, int64_t, int64_t> &Nx_Ny_Nz,
                  const std::tuple<double, double, double> &ax_ay_az,
-                 const std::tuple<double, double, double> &bx_by_bz, double _dt)
+                 const std::tuple<double, double, double> &bx_by_bz,
+                 const std::tuple<double, double, double> &dx_dy_dz, double _dt)
     : Nx{std::get<0>(Nx_Ny_Nz)}, Ny{std::get<1>(Nx_Ny_Nz)},
       Nz{std::get<2>(Nx_Ny_Nz)}, Ex{get_Nx(), get_Ny(), get_Nz()},
       Ey{get_Nx(), get_Ny(), get_Nz()}, Ez{get_Nx(), get_Ny(), get_Nz()},
@@ -12,10 +13,54 @@ FDTD::FDTD::FDTD(const std::tuple<int64_t, int64_t, int64_t> &Nx_Ny_Nz,
       ay{std::get<1>(ax_ay_az)}, az{std::get<2>(ax_ay_az)},
       bx{std::get<0>(bx_by_bz)}, by{std::get<1>(bx_by_bz)},
       bz{std::get<2>(bx_by_bz)},
-      dx{(get_bx() - get_ax()) / static_cast<double>(Nx)},
-      dy{(get_by() - get_ay()) / static_cast<double>(Ny)},
-      dz{(Nz > 1) ? (get_bz() - get_az()) / static_cast<double>(Nz) : 0.0},
-      dt{_dt} {}
+      // dx{(get_bx() - get_ax()) / static_cast<double>(Nx)},
+      // dy{(get_by() - get_ay()) / static_cast<double>(Ny)},
+      // dz{(Nz > 1) ? (get_bz() - get_az()) / static_cast<double>(Nz) : 0.0},
+      dx{std::get<0>(dx_dy_dz)}, 
+      dy{std::get<1>(dx_dy_dz)},
+      dz{std::get<2>(dx_dy_dz)},
+      dt{_dt} {
+        // int world_size = 0;
+        // MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+        // if (world_size == 1) return;
+
+        // // Определение общего размеры сетки для правильного определения dx, dy, dz
+
+        // int rank = 0;
+        // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+        // int64_t global_Nx_Ny_Nz[3] = {0, 0, 0};
+        // int64_t local_Nx_Ny_Nz[3] = {Nx, Ny, Nz};
+
+        // if (rank == 0) {
+        //   std::cout << "Nx = " << local_Nx_Ny_Nz[0] << " Ny = " << local_Nx_Ny_Nz[1] << " Nz = " << local_Nx_Ny_Nz[2] << '\n';
+        // }
+
+        // MPI_Allreduce(&local_Nx_Ny_Nz, &global_Nx_Ny_Nz, 3, MPI_INT64_T, MPI_SUM, MPI_COMM_WORLD);
+
+        // if (rank == 0) {
+        //   std::cout << "Nx = " << global_Nx_Ny_Nz[0] << " Ny = " << global_Nx_Ny_Nz[1] << " Nz = " << global_Nx_Ny_Nz[2] << '\n';
+        // }
+
+        // global_Nx_Ny_Nz[0] = std::max(global_Nx_Ny_Nz[0] - 2 * world_size, static_cast<int64_t>(1));
+        // global_Nx_Ny_Nz[1] = std::max(global_Nx_Ny_Nz[1] - 2 * world_size, static_cast<int64_t>(1));
+        // // Важно правильно настроить Nz, в случае, если сетка 2D
+        // // ОПАСНОЕ МЕСТО. Не уверен, учтены ли здесь все случаи!!!
+        // global_Nx_Ny_Nz[2] = std::max(global_Nx_Ny_Nz[2] - 2 * world_size, static_cast<int64_t>(1));
+
+        // if (rank == 0) {
+        //   std::cout << "Nx = " << global_Nx_Ny_Nz[0] << " Ny = " << global_Nx_Ny_Nz[1] << " Nz = " << global_Nx_Ny_Nz[2] << '\n';
+        // }
+        
+        // dx = (get_bx() - get_ax()) / static_cast<double>(global_Nx_Ny_Nz[0]);
+        // dy = (get_by() - get_ay()) / static_cast<double>(global_Nx_Ny_Nz[1]);
+        // // Важно правильно настроить dz, в случае, если сетка 2D
+        // dz = (global_Nx_Ny_Nz[2] > 1) ? (get_bz() - get_az()) / static_cast<double>(global_Nx_Ny_Nz[2]) : 0.0;
+
+        // std::cout << "rank = " << rank << " dx = " << dx << " dy = " << dy << " dz = " << dz << '\n';
+
+      }
 
 FDTD::FDTD::FDTD(const FDTD &_fields)
     : Nx{_fields.get_Nx()}, Ny{_fields.get_Ny()}, Nz{_fields.get_Nz()},
@@ -206,6 +251,9 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
     exit(-1);
   }
 
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   double B_dt = dt * 0.5;
   double E_dt = dt;
 
@@ -218,11 +266,11 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 
   // for (double time = 0.0; time < t; time += E_dt) // ПОПРАВИТЬ НА time += E_dt
   if (Nz < 2) {
-  #pragma omp parallel private(i, j) 
+// #pragma omp parallel private(i, j) 
   {
     for (int64_t time = 0; time < t; ++time) {
 
-#pragma omp for collapse(2)
+// #pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
           Bx(i, j) = Bx(i, j) + C * B_dt * (-(Ez(i, j + 1) - Ez(i, j)) / dy);
@@ -230,9 +278,17 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
           Bz(i, j) = Bz(i, j) + C * B_dt *
                                     ((Ex(i, j + 1) - Ex(i, j)) / dy -
                                      (Ey(i + 1, j) - Ey(i, j)) / dx);
+
         }
+      // for (i = 0; i < Nx; ++i)
+      //   for (j = 0; j < Ny; ++j) {
+      //     if (Bz(i, j) - Bz(i, j - 1) != 0.0) {
+      //       std::cout << "Ex = " << Ex(i,j) << " " << "i = " << i << " j = " << j << " Bz(i , j) - Bz(i, j - 1) = " << Bz(i, j) - Bz(i, j - 1) << " rank = " << rank << " time = " << time << std::endl;
+      //       exit(-10);
+      //     }      
+      //   }                               
       boundary_synchronization();
-#pragma omp for collapse(2)
+// #pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
           Ex(i, j) = Ex(i, j) + C * E_dt * ((Bz(i, j) - Bz(i, j - 1)) / dy);
@@ -240,11 +296,14 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
           Ez(i, j) = Ez(i, j) + C * E_dt *
                                     ((By(i, j) - By(i - 1, j)) / dx -
                                      (Bx(i, j) - Bx(i, j - 1)) / dy);
+
         }
       boundary_synchronization();
-#pragma omp for collapse(2)
+// #pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
+          // if (rank == 0)
+            // std::cout << " time = " << time << " i = " << i << " j = " << j << std::endl;
           Bx(i, j) = Bx(i, j) + C * B_dt * (-(Ez(i, j + 1) - Ez(i, j)) / dy);
           By(i, j) = By(i, j) + C * B_dt * ((Ez(i + 1, j) - Ez(i, j)) / dx);
           Bz(i, j) = Bz(i, j) + C * B_dt *
@@ -254,7 +313,7 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
       boundary_synchronization();
     }
   }
-  } else {
+  }  /* else {
 #pragma omp parallel private(i, j, k)
     {
       for (int64_t time = 0; time < t; ++time) // ПОПРАВИТЬ НА time += E_dt
@@ -318,7 +377,7 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
         boundary_synchronization_3D();
       }
     }
-  }
+  } */
 }
 
 // void FDTD::FDTD::shifted_field_update(const int64_t t) {
@@ -1554,41 +1613,57 @@ void FDTD::FDTD::shifted_field_update(const int64_t t) {
 //   // #endif // MPI
 // }
 
-void FDTD::FDTD::write_fields_to_file(const char *path, const Component E,
+void FDTD::FDTD::write_fields_to_file(const char *directory_path, const Component E,
                                       const Component B, const double delta,
                                       const int64_t row_number) {
+
+  int rank = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  fs::path file_path = fs::path(directory_path);
+
+  // Формирование имени файла для текущего процесса
+  // Обращение сначала к patent_path из-за того, что путь заканчивается на / (поэтому последний элемент пустой)
+  if (file_path.parent_path().filename() == "my_data")
+    file_path /= "my_data_" + std::to_string(rank) + ".csv";
+  else if (file_path.parent_path().filename() == "analytical_data")
+    file_path /= "analytical_data_" + std::to_string(rank) + ".csv";
+  else {
+    std::cerr << "FDTD::FDTD::write_fields_to_file() error: invalid directory path" << std::endl;
+    exit(-1);
+  }
 
   Axis axis = get_axis(E, B);
   switch (axis) {
   case Axis::Ox:
-    Ex.write_field_to_file_OX(path, row_number);
-    Ey.write_field_to_file_OX(path, row_number);
-    Ez.write_field_to_file_OX(path, row_number);
-    Bx.write_field_to_file_OX(path, row_number);
-    By.write_field_to_file_OX(path, row_number);
-    Bz.write_field_to_file_OX(path, row_number);
+    Ex.write_field_to_file_OX(file_path.string().c_str(), row_number);
+    Ey.write_field_to_file_OX(file_path.string().c_str(), row_number);
+    Ez.write_field_to_file_OX(file_path.string().c_str(), row_number);
+    Bx.write_field_to_file_OX(file_path.string().c_str(), row_number);
+    By.write_field_to_file_OX(file_path.string().c_str(), row_number);
+    Bz.write_field_to_file_OX(file_path.string().c_str(), row_number);
     break;
   case Axis::Oy:
-    Ex.write_field_to_file_OY(path, row_number);
-    Ey.write_field_to_file_OY(path, row_number);
-    Ez.write_field_to_file_OY(path, row_number);
-    Bx.write_field_to_file_OY(path, row_number);
-    By.write_field_to_file_OY(path, row_number);
-    Bz.write_field_to_file_OY(path, row_number);
+    Ex.write_field_to_file_OY(file_path.string().c_str(), row_number);
+    Ey.write_field_to_file_OY(file_path.string().c_str(), row_number);
+    Ez.write_field_to_file_OY(file_path.string().c_str(), row_number);
+    Bx.write_field_to_file_OY(file_path.string().c_str(), row_number);
+    By.write_field_to_file_OY(file_path.string().c_str(), row_number);
+    Bz.write_field_to_file_OY(file_path.string().c_str(), row_number);
     break;
   case Axis::Oz:
-    Ex.write_field_to_file_OZ(path, row_number);
-    Ey.write_field_to_file_OZ(path, row_number);
-    Ez.write_field_to_file_OZ(path, row_number);
-    Bx.write_field_to_file_OZ(path, row_number);
-    By.write_field_to_file_OZ(path, row_number);
-    Bz.write_field_to_file_OZ(path, row_number);
+    Ex.write_field_to_file_OZ(file_path.string().c_str(), row_number);
+    Ey.write_field_to_file_OZ(file_path.string().c_str(), row_number);
+    Ez.write_field_to_file_OZ(file_path.string().c_str(), row_number);
+    Bx.write_field_to_file_OZ(file_path.string().c_str(), row_number);
+    By.write_field_to_file_OZ(file_path.string().c_str(), row_number);
+    Bz.write_field_to_file_OZ(file_path.string().c_str(), row_number);
     break;
   default:
     break;
   }
   std::ofstream outfile;
-  outfile.open(path, std::ios::app);
+  outfile.open(file_path, std::ios::app);
   if (!outfile.is_open()) {
     std::cout << "The file can't be opened!" << std::endl;
     exit(-1);
@@ -1627,52 +1702,208 @@ Axis FDTD::FDTD::get_axis(const Component E, const Component B) {
   }
 }
 
-void FDTD::FDTD::boundary_synchronization(/*Сюда добавить поля*/) {
-  // Синхронизация границ для 2д случая
-  // Угловые узлы обрабатываются сразу, а не отдельно
-
-  // Слева (за исключением угловых узлов)
-#pragma omp for
-  for (int64_t y = 0; y < Ny; ++y) {
-    Ex(-1, y) = Ex(Nx - 1, y);
-    Ey(-1, y) = Ey(Nx - 1, y);
-    Ez(-1, y) = Ez(Nx - 1, y);
-    Bx(-1, y) = Bx(Nx - 1, y);
-    By(-1, y) = By(Nx - 1, y);
-    Bz(-1, y) = Bz(Nx - 1, y);
-  }
-  // Справа (за исключением угловых узлов)
-#pragma omp for
-  for (int64_t y = 0; y < Ny; ++y) {
-    Ex(Nx, y) = Ex(0, y);
-    Ey(Nx, y) = Ey(0, y);
-    Ez(Nx, y) = Ez(0, y);
-    Bx(Nx, y) = Bx(0, y);
-    By(Nx, y) = By(0, y);
-    Bz(Nx, y) = Bz(0, y);
-  }
-#pragma omp for
-  for (int64_t x = -1; x < Nx + 1; ++x) {
-    Ex(x, Ny) = Ex(x, 0);
-    Ey(x, Ny) = Ey(x, 0);
-    Ez(x, Ny) = Ez(x, 0);
-    Bx(x, Ny) = Bx(x, 0);
-    By(x, Ny) = By(x, 0);
-    Bz(x, Ny) = Bz(x, 0);
-  }
-  // Низ (с угловыми узлами)
-#pragma omp for
-  for (int64_t x = -1; x < Nx + 1; ++x) {
-    Ex(x, -1) = Ex(x, Ny - 1);
-    Ey(x, -1) = Ey(x, Ny - 1);
-    Ez(x, -1) = Ez(x, Ny - 1);
-    Bx(x, -1) = Bx(x, Ny - 1);
-    By(x, -1) = By(x, Ny - 1);
-    Bz(x, -1) = Bz(x, Ny - 1);
+std::string FDTD::FDTD::axisToString(const Component E, const Component B) {
+  if (E == Component::Ey && B == Component::Bz) 
+    return "+ Ox";
+  else if ((E == Component::Ez && B == Component::By))
+    return "- Ox";
+  else if ((E == Component::Ez && B == Component::Bx))
+    return "+ Oy";
+  else if ((E == Component::Ex && B == Component::Bz))
+    return "- Oy";
+  else if ((E == Component::Ex && B == Component::By))
+    return "+ Oz";
+  else if ((E == Component::Ey && B == Component::Bx))
+    return "- Oz";
+  else {
+    std::cout << "\nGet_Axis: Error! Wrong Components!\n";
+    exit(-1);
   }
 }
 
+void FDTD::FDTD::boundary_synchronization(/*Сюда добавить поля*/) {
+
+  // СИСТЕМА ТЕГОВ ДЛЯ MPI (ОТПРАВКА):
+  // 0 - низ
+  // 1 - верх
+
+  int rank = 0;
+  int mpi_comm_size = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &mpi_comm_size);
+
+  if (rank == 0) {
+    // std::cout << "Nx = " << Nx << " Ny = " << Ny << " Nz = " << Nz << std::endl;
+  }
+
+
+  // Сначала рассматривается разбиение по OY для 2D
+
+  // Слева и справа (граничные условия для 2D) (Всё это внутри процесса, поэтому без MPI сообщений)
+  for (int64_t i = 0; i < Ny; ++i) {
+    // Слева
+    Ex(-1, i) = Ex(Nx - 1, i);
+    Ey(-1, i) = Ey(Nx - 1, i);
+    Ez(-1, i) = Ez(Nx - 1, i);
+    Bx(-1, i) = Bx(Nx - 1, i);
+    By(-1, i) = By(Nx - 1, i);
+    Bz(-1, i) = Bz(Nx - 1, i);
+
+    // Справа
+    Ex(Nx, i) = Ex(0, i);
+    Ey(Nx, i) = Ey(0, i);
+    Ez(Nx, i) = Ez(0, i);
+    Bx(Nx, i) = Bx(0, i);
+    By(Nx, i) = By(0, i);
+    Bz(Nx, i) = Bz(0, i);
+  }
+
+  // В NY фактически хранится Ny_local (то есть размер без оболочки)
+
+  // Нужно потом будет учесть ситуацию, когда только один процесс
+  // ТАКЖЕ ИНДЕКСЫ ЗДЕСЬ НЕ УЧИТЫВАЮТ OZ НАПРАВЛЕНИЕ!
+  // НЕ забыть добавить правильную обработку угловых значений для 0 и последнего процессов
+  // ****************************************************************************************************
+  // Низ каждого процесса передаётся вверх предыдущему процессу (P.S. не нулевая строка, а первая)
+
+  if (mpi_comm_size > 1) {
+
+    if (rank != 0) {
+      MPI_Send(&Ex(-1, 0), Nx + 2, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
+      MPI_Send(&Ey(-1, 0), Nx + 2, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
+      MPI_Send(&Ez(-1, 0), Nx + 2, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
+      MPI_Send(&Bx(-1, 0), Nx + 2, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
+      MPI_Send(&By(-1, 0), Nx + 2, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
+      MPI_Send(&Bz(-1, 0), Nx + 2, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
+    }
+
+    // Принятие верха от низа следующего процесса (P.S. последняя строка)
+    if (rank != mpi_comm_size - 1) {
+      MPI_Recv(&Ex(-1, Ny), Nx + 2, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&Ey(-1, Ny), Nx + 2, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&Ez(-1, Ny), Nx + 2, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&Bx(-1, Ny), Nx + 2, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&By(-1, Ny), Nx + 2, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(&Bz(-1, Ny), Nx + 2, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+    // ****************************************************************************************************
+
+    // Верх каждого процесса передаётся вниз следующему процессу (P.S. не последняя строка, а предпоследняя)
+    if (rank != mpi_comm_size - 1) {
+      MPI_Send(&Ex(-1, Ny - 1), Nx + 2, MPI_DOUBLE, rank + 1, 1, MPI_COMM_WORLD);
+      MPI_Send(&Ey(-1, Ny - 1), Nx + 2, MPI_DOUBLE, rank + 1, 1, MPI_COMM_WORLD);
+      MPI_Send(&Ez(-1, Ny - 1), Nx + 2, MPI_DOUBLE, rank + 1, 1, MPI_COMM_WORLD);
+      MPI_Send(&Bx(-1, Ny - 1), Nx + 2, MPI_DOUBLE, rank + 1, 1, MPI_COMM_WORLD);
+      MPI_Send(&By(-1, Ny - 1), Nx + 2, MPI_DOUBLE, rank + 1, 1, MPI_COMM_WORLD);
+      MPI_Send(&Bz(-1, Ny - 1), Nx + 2, MPI_DOUBLE, rank + 1, 1, MPI_COMM_WORLD);
+    }
+    
+    // Принятие низа от верха предыдущего процесса (P.S нулевая строка)
+    if (rank != 0) {
+      MPI_Recv(Ex.data(), Nx + 2, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(Ey.data(), Nx + 2, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(Ez.data(), Nx + 2, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(Bx.data(), Nx + 2, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(By.data(), Nx + 2, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Recv(Bz.data(), Nx + 2, MPI_DOUBLE, rank - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    // ****************************************************************************************************
+
+    // Синхронизация для нулевого и последнего процессов
+
+    // Отправка низа вверх последнего процесса (P.S. не нулевая строка, а первая), а также получение низа (нулевой строки) от последнего процесса
+    if (rank == 0) {
+      MPI_Sendrecv(&Ex(-1, 0), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 0, Ex.data(), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&Ey(-1, 0), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 0, Ey.data(), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&Ez(-1, 0), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 0, Ez.data(), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&Bx(-1, 0), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 0, Bx.data(), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&By(-1, 0), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 0, By.data(), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&Bz(-1, 0), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 0, Bz.data(), Nx + 2, MPI_DOUBLE, mpi_comm_size - 1, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    // Отправка верха вниз нулевого процесса (P.S. не последняя строка, а предпоследняя), а также получение верха (последней строки) от нулевого процесса
+    if (rank == mpi_comm_size - 1) {
+      MPI_Sendrecv(&Ex(-1, Ny - 1), Nx + 2, MPI_DOUBLE, 0, 1, &Ex(-1, Ny), Nx + 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&Ey(-1, Ny - 1), Nx + 2, MPI_DOUBLE, 0, 1, &Ey(-1, Ny), Nx + 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&Ez(-1, Ny - 1), Nx + 2, MPI_DOUBLE, 0, 1, &Ez(-1, Ny), Nx + 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&Bx(-1, Ny - 1), Nx + 2, MPI_DOUBLE, 0, 1, &Bx(-1, Ny), Nx + 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&By(-1, Ny - 1), Nx + 2, MPI_DOUBLE, 0, 1, &By(-1, Ny), Nx + 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+      MPI_Sendrecv(&Bz(-1, Ny - 1), Nx + 2, MPI_DOUBLE, 0, 1, &Bz(-1, Ny), Nx + 2, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+  } else {
+    // Верх (с угловыми узлами)
+    for (int64_t x = -1; x < Nx + 1; ++x) {
+      Ex(x, Ny) = Ex(x, 0);
+      Ey(x, Ny) = Ey(x, 0);
+      Ez(x, Ny) = Ez(x, 0);
+      Bx(x, Ny) = Bx(x, 0);
+      By(x, Ny) = By(x, 0);
+      Bz(x, Ny) = Bz(x, 0);
+    }
+    // Низ (с угловыми узлами)
+    for (int64_t x = -1; x < Nx + 1; ++x) {
+      Ex(x, -1) = Ex(x, Ny - 1);
+      Ey(x, -1) = Ey(x, Ny - 1);
+      Ez(x, -1) = Ez(x, Ny - 1);
+      Bx(x, -1) = Bx(x, Ny - 1);
+      By(x, -1) = By(x, Ny - 1);
+      Bz(x, -1) = Bz(x, Ny - 1);
+    }
+  }
+
+
+  // ****************************************************************************************************
+
+
+
+//   // Синхронизация границ для 2д случая
+//   // Угловые узлы обрабатываются сразу, а не отдельно
+
+//   // Слева (за исключением угловых узлов)
+// #pragma omp for
+//   for (int64_t y = 0; y < Ny; ++y) {
+//     Ex(-1, y) = Ex(Nx - 1, y);
+//     Ey(-1, y) = Ey(Nx - 1, y);
+//     Ez(-1, y) = Ez(Nx - 1, y);
+//     Bx(-1, y) = Bx(Nx - 1, y);
+//     By(-1, y) = By(Nx - 1, y);
+//     Bz(-1, y) = Bz(Nx - 1, y);
+//   }
+//   // Справа (за исключением угловых узлов)
+// #pragma omp for
+//   for (int64_t y = 0; y < Ny; ++y) {
+//     Ex(Nx, y) = Ex(0, y);
+//     Ey(Nx, y) = Ey(0, y);
+//     Ez(Nx, y) = Ez(0, y);
+//     Bx(Nx, y) = Bx(0, y);
+//     By(Nx, y) = By(0, y);
+//     Bz(Nx, y) = Bz(0, y);
+//   }
+// #pragma omp for
+//   for (int64_t x = -1; x < Nx + 1; ++x) {
+//     Ex(x, Ny) = Ex(x, 0);
+//     Ey(x, Ny) = Ey(x, 0);
+//     Ez(x, Ny) = Ez(x, 0);
+//     Bx(x, Ny) = Bx(x, 0);
+//     By(x, Ny) = By(x, 0);
+//     Bz(x, Ny) = Bz(x, 0);
+//   }
+//   // Низ (с угловыми узлами)
+// #pragma omp for
+//   for (int64_t x = -1; x < Nx + 1; ++x) {
+//     Ex(x, -1) = Ex(x, Ny - 1);
+//     Ey(x, -1) = Ey(x, Ny - 1);
+//     Ez(x, -1) = Ez(x, Ny - 1);
+//     Bx(x, -1) = Bx(x, Ny - 1);
+//     By(x, -1) = By(x, Ny - 1);
+//     Bz(x, -1) = Bz(x, Ny - 1);
+//   }
+}
+
 void FDTD::FDTD::boundary_synchronization_3D() {
+
   // Для 3д случая добавлен цикл по z для синхронизации каждого яруса 2д границ \
   а также отдельно без цикла добавлена синхронизация нижней и верхней граней \
   относительно Oz.

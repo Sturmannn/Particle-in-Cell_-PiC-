@@ -95,11 +95,70 @@ Field::ComputingField& Field::ComputingField::operator=(ComputingField&& _field)
   return *this;
 }
 
-void Field::ComputingField::clear_file(const char* path)
-{
-  std::ofstream outfile;
-  outfile.open(path, std::ios::out | std::ios::trunc); // Очистка файла при открытии на запись
-  outfile.close();
+// void Field::ComputingField::clear_file(const char* path)
+// {
+//   std::ofstream outfile;
+//   outfile.open(path, std::ios::out | std::ios::trunc); // Очистка файла при открытии на запись
+//   outfile.close();
+// }
+
+void Field::ComputingField::clear_files(const char *directory_path) {
+  int rank = 0;
+  int size = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+  fs::path dir_path = fs::path(directory_path);
+
+  // Формирование имени файла для текущего процесса
+  // Обращение сначала к patent_path из-за того, что путь заканчивается на / (поэтому последний элемент пустой)
+  fs::path file_path = fs::path(directory_path);
+  if (file_path.parent_path().filename() == "my_data")
+    file_path /= "my_data_" + std::to_string(rank) + ".csv";
+  else if (file_path.parent_path().filename() == "analytical_data")
+    file_path /= "analytical_data_" + std::to_string(rank) + ".csv";
+  else {
+    std::cerr << "Field::ComputingField::clear_files() error: invalid directory path" << std::endl;
+    exit(-1);
+  }
+
+  // Очистка файла или его создание
+  try {
+      std::ofstream file(file_path, std::ofstream::out | std::ofstream::trunc);
+      if (file.is_open()) {
+          file.close();
+      } else {
+          std::cerr << "Process " << rank << " failed to open file: " << file_path << std::endl;
+      }
+  } catch (const std::exception& e) {
+      std::cerr << "Error in process " << rank << " while handling file " << file_path << ": " << e.what() << std::endl;
+  }
+
+  // Удаление лишних файлов
+  // В случае ручного вмешательства в директории, следует очистить файлы вручную
+  if (rank == 0) {
+    int i = size;
+    while (true) {
+      fs::path extra_file_path;
+      if (dir_path.parent_path().filename() == "my_data")
+        extra_file_path = dir_path / ("my_data_" + std::to_string(i) + ".csv");
+      else if (dir_path.parent_path().filename() == "analytical_data")
+        extra_file_path = dir_path / ("analytical_data_" + std::to_string(i) + ".csv");
+
+      if (fs::exists(extra_file_path)) {
+        try {
+          fs::remove(extra_file_path);
+        } catch (const std::exception &e) {
+          std::cerr << "Error while removing extra file " << extra_file_path << ": " << e.what() << std::endl;
+        }
+      } else {
+        // Прекращение цикла, если файл не существует
+        // Так как файлы идут по порядку, то если один не существует, то и последующие тоже не существуют
+        break; 
+      }
+      ++i;
+    }
+  }
 }
 
 // "index" - это индекс строки или столбца, который фиксируется.
@@ -138,6 +197,7 @@ void Field::ComputingField::write_field_to_file(const char* path, const int64_t 
       outfile << this->operator()(index, j, -1) << (j < Ny - 1 ? ';' : '\n');
     break;
   case Axis::Oz:
+    if (Nz == 1) return;
     check_index(index, Ny);
     for (int64_t k = 0; k < Nz; ++k) // k = 0, но по оси Oz двигаемся только в 3D, так что ОК
       outfile << this->operator()(0, index, k) << (k < Nz - 1 ? ';' : '\n');

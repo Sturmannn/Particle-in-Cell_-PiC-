@@ -4,17 +4,21 @@
 #include <fstream>
 #include <iostream>
 #include <vector>
+#include <string>
+#include <mpi.h>
+#include <filesystem>
 
-constexpr const char *path_to_analytic_data = PATH_TO_ANALYTICAL_DATA;
-    // "..\\..\\input_for_graphs\\analytical_data.csv"; // Writing E, B to a file
-constexpr const char *path_to_calculated_data = PATH_TO_CALCULATED_DATA;
-    // "..\\..\\input_for_graphs\\my_data.csv";
+// constexpr const char *path_to_analytic_data = PATH_TO_ANALYTICAL_DATA;
+// constexpr const char *path_to_calculated_data = PATH_TO_CALCULATED_DATA;
+// constexpr const char *path_to_convergence_data = PATH_TO_CONVERGENCE_DATA;
 
+constexpr const char *path_to_analytical_data_directory = PATH_TO_ANALYTICAL_DATA_DIRECTORY; 
+constexpr const char *path_to_calculated_data_directory = PATH_TO_CALCULATED_DATA_DIRECTORY;
 constexpr const char *path_to_convergence_data = PATH_TO_CONVERGENCE_DATA;
 
-    // "..\\..\\input_for_graphs\\convergence.csv"; // Writing convergence
-
 enum class Axis : int { Ox, Oy, Oz };
+
+namespace fs = std::filesystem;
 
 namespace Field {
 
@@ -58,7 +62,10 @@ public:
   void clear_field() noexcept;
 
   // Очистка файла
-  static void clear_file(const char *path);
+  // static void clear_file(const char *path);
+
+  // Очистка файлов
+  static void clear_files(const char *directory_path);
 
 private:
   void write_field_to_file(const char *path, const int64_t index, Axis axis);

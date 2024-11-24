@@ -1,132 +1,91 @@
-import csv
-import matplotlib.pyplot as plt
+import os
 import numpy as np
+import matplotlib.pyplot as plt
+import glob
 
-# # with open("analytical_data.csv", "r") as file:
-# #     reader = csv.reader(file, delimiter=";")
-# #     an_data_first_row = next(reader)
-# #     an_data = [np.float64(x) for x in an_data_first_row]
-# #     an_data_second_row = next(reader)
-# #     an_data_dx = np.float64(an_data_second_row[0])
+def check_convergence():
+    print("Check convergence")
 
-# # with open("my_data.csv", "r") as file:
-# #     reader = csv.reader(file, delimiter=";")
-# #     my_data_first_row = next(reader)
-# #     my_data = [np.float64(x) for x in my_data_first_row]
-# #     my_data_second_row = next(reader)
-# #     my_data_dx = np.float64(my_data_second_row[0])
+plt.style.use('ggplot')
 
-with open("./input_for_graphs/analytical_data.csv", "r") as file:
-    reader = csv.reader(file, delimiter=";")
-    an_data_Ex = [np.float64(x) for x in next(reader)]
-    an_data_Ey = [np.float64(x) for x in next(reader)]
-    an_data_Ez = [np.float64(x) for x in next(reader)]
-    an_data_Bx = [np.float64(x) for x in next(reader)]
-    an_data_By = [np.float64(x) for x in next(reader)]
-    an_data_Bz = [np.float64(x) for x in next(reader)]
-    an_data_dx = np.float64(next(reader)[0])
+# Получаем путь к директории, где находится текущий файл
+file_directory = os.path.dirname(os.path.abspath(__file__))
 
-with open("./input_for_graphs/my_data.csv", "r") as file:
-    reader = csv.reader(file, delimiter=";")
-    my_data_Ex = [np.float64(x) for x in next(reader)]
-    my_data_Ey = [np.float64(x) for x in next(reader)]
-    my_data_Ez = [np.float64(x) for x in next(reader)]
-    my_data_Bx = [np.float64(x) for x in next(reader)]
-    my_data_By = [np.float64(x) for x in next(reader)]
-    my_data_Bz = [np.float64(x) for x in next(reader)]
-    my_data_dx = np.float64(next(reader)[0])
+# Объединение текущей директории с указанными путями
+numerical_path  = os.path.join(file_directory, 'my_data')
+analytical_path  = os.path.join(file_directory, 'analytical_data')
 
-dx = 0
-x = []
-for i in range(0, np.size(my_data_Ex)):
-    x.append(i + dx)
-    dx += my_data_dx
+fields = ['Ex', 'Ey', 'Ez', 'Bx', 'By', 'Bz']
 
-# plt.xlabel('N$\Delta x$', fontsize=20)
-# plt.ylabel("Поле Еz", fontsize=20)
-# plt.title('Графики значения Ez')
-# plt.title('График значения Ez', fontsize=20)
-# plt.title('Разность численного и аналитических решений (Ez)', fontsize=20)
+numerical_data = {field: [] for field in fields}
+analytical_data = {field: [] for field in fields}
+deltas = []
 
-print(len(my_data_Ez))
-print(np.size(my_data_dx))
+# Считывание всех файлов с данными
+numerical_files = sorted(glob.glob(os.path.join(numerical_path, 'my_data_*.csv')))
+analytical_files = sorted(glob.glob(os.path.join(analytical_path, 'analytical_data_*.csv')))
 
-# sub_data = []
-# for i in range(0, np.size(an_data_Ez)):
-#     sub_data.append(my_data_Ez[i] - an_data_Ez[i])
-# plt.plot(x, sub_data, linestyle='-', linewidth=3 , color='black', label="Разность решений", alpha=1)
-# plt.plot(x, an_data_Ez, linestyle='-', linewidth=3 , color='r', label="Аналитическое решение", alpha=1)
-# plt.plot(x, my_data_Ez, linestyle='--', linewidth=6, color='b', label="Численное решение", alpha=0.6)
+num_combined_data = []
+anl_combined_data = []
+delta = None
 
-# plt.plot(x, an_data_Ez, 'g', label="Аналитический график")
-# plt.plot(x, my_data_Ez, label="Численный график")
-# plt.savefig(".\Plots\myPlot.png")
+# Чтение и объединение данных численного и аналитического решений
+for num_file, anl_file in zip(numerical_files, analytical_files):
 
-# my_div_an = np.asarray(my_data) / np.asarray(an_data);
-# plt.plot(x, my_div_an, label="График деления АН на ЧИ");
+    num_data = np.genfromtxt(num_file, delimiter=';', skip_footer=1)
+    anl_data = np.genfromtxt(anl_file, delimiter=';', skip_footer=1)
 
-# plt.xticks(fontsize=20)
-# plt.yticks(fontsize=20)
-# plt.legend(fontsize=20)
-# plt.grid()
-# plt.show()
+    # Добавление данных к существующим строкам
+    if not num_combined_data:
+        num_combined_data = num_data.tolist()
+        anl_combined_data = anl_data.tolist()
+    else:
+        for i in range(len(num_combined_data)):
+            num_combined_data[i].extend(num_data[i])
+            anl_combined_data[i].extend(anl_data[i])
+    
+    # Чтение дельты, если она еще не была считана
+    if delta is None:
+        delta = np.genfromtxt(num_file, delimiter=';', skip_header=len(num_data))
+        if isinstance(delta, np.ndarray):
+            delta = delta.item()  # Преобразование массива в число
 
+num_combined_data = np.array(num_combined_data, dtype=object)
+anl_combined_data = np.array(anl_combined_data, dtype=object)
 
+# Создание графиков для каждого поля
+fig, axs = plt.subplots(3, 2, figsize=(14, 10))
+axs = axs.flatten()
 
-# # Создание шести осей в трех рядах и два столбца
-fig, axs = plt.subplots(3, 2)
+# Создание оси Ox
+# x_axis = np.arange(len(num_combined_data[0]))
+x_axis = np.arange(len(num_combined_data[0])) * delta
 
-# Построение графиков на каждой из созданных осей
-# Поля E
-axs[0, 0].plot(x, my_data_Ex, linestyle='--', linewidth=4, color="red", label='Численное решение')
-axs[0, 0].plot(x, an_data_Ex, alpha=0.6, linewidth=3, label='Аналитическое решение')
-axs[0, 0].set_xlabel(r'N$\Delta$x')
-axs[0, 0].set_ylabel('Поле Ex')
-axs[0, 0].legend()
-axs[0, 0].grid()
+# Цвета для различных графиков
+colors = ['blue', 'red']
 
-axs[1, 0].plot(x, my_data_Ey, linestyle='--', linewidth=4, color="red", label='Численное решение')
-axs[1, 0].plot(x, an_data_Ey, alpha=0.6, linewidth=3, label='Аналитическое решение')
-axs[1, 0].set_xlabel(r'N$\Delta$x')
-axs[1, 0].set_ylabel('Поле Ey')
-axs[1, 0].legend()
-axs[1, 0].grid()
+# Построение графиков
+for idx, field in enumerate(fields):
+    # Получение данных для численного и аналитического решения
+    num_values = num_combined_data[idx]
+    anl_values = anl_combined_data[idx]
+    
+    # Построение численного и аналитического графиков
+    axs[idx].plot(x_axis, anl_values, label='Аналитическое решение', color=colors[1], linewidth=3, alpha=0.7)
+    axs[idx].plot(x_axis, num_values, label='Численное решение', color=colors[0], linestyle='--', linewidth=4, alpha=0.7)
+    
+    # Настройка подписей и заголовков
+    axs[idx].set_xlabel(r'N$\Delta$x', fontsize=12)
+    axs[idx].set_ylabel(f"Поле {field}", fontsize=12)
+    axs[idx].set_title(f"График значения {field}", fontsize=14)
+    
+    # Добавление легенды и сетки
+    axs[idx].legend(fontsize=10)
+    axs[idx].grid(True, color='black', linestyle=':')
+    
+    # # Увеличиваем шрифт
+    # for label in (axs[idx].get_xticklabels() + axs[idx].get_yticklabels()):
+    #     label.set_fontsize(10)
 
-axs[2, 0].plot(x, my_data_Ez, linestyle='--', linewidth=4, color="red", label='Численное решение')
-axs[2, 0].plot(x, an_data_Ez, alpha=0.6, linewidth=3, label='Аналитическое решение')
-axs[2, 0].set_xlabel(r'N$\Delta$x')
-axs[2, 0].set_ylabel('Поле Ez')
-axs[2, 0].legend()
-axs[2, 0].grid()
-
-# Поля B
-axs[0, 1].plot(x, my_data_Bx, linestyle='--', linewidth=4, color="red", label='Численное решение')
-axs[0, 1].plot(x, an_data_Bx, alpha=0.6, linewidth=3, label='Аналитическое решение')
-axs[0, 1].set_xlabel(r'N$\Delta$x')
-axs[0, 1].set_ylabel('Поле Bx')
-axs[0, 1].legend()
-axs[0, 1].grid()
-
-axs[1, 1].plot(x, my_data_By, linestyle='--', linewidth=4, color="red", label='Численное решение')
-axs[1, 1].plot(x, an_data_By, alpha=0.6, linewidth=3, label='Аналитическое решение')
-axs[1, 1].set_xlabel(r'N$\Delta$x')
-axs[1, 1].set_ylabel('Поле By')
-axs[1, 1].legend()
-axs[1, 1].grid()
-
-axs[2, 1].plot(x, my_data_Bz, linestyle='--', linewidth=4, color="red", label='Численное решение')
-axs[2, 1].plot(x, an_data_Bz, alpha=0.6, linewidth=3, label='Аналитическое решение')
-axs[2, 1].set_xlabel(r'N$\Delta$x')
-axs[2, 1].set_ylabel('Поле Bz')
-axs[2, 1].legend()
-axs[2, 1].grid()
-
-# plt.plot(x, my_data_Bx, label='Численное решение')
-# plt.plot(x, an_data_Bx, label='Аналитическое решение')
-# plt.xlabel(r'N$\Delta$x')
-# plt.ylabel('Поле Bx')
-# plt.legend()
-# plt.grid()
-
-
+plt.tight_layout()
 plt.show()

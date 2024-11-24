@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.15)
 set(PROJECT_NAME Maxwells_equations_FDTD)
 project(${PROJECT_NAME} LANGUAGES CXX C)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 find_package(OpenMP)
 if (OpenMP_CXX_FOUND)
     message(STATUS "OpenMP ${OpenMP_CXX_VERSION} FOUND")
@@ -15,15 +18,23 @@ endif()
 # message(STATUS "OpenMP_omp_LIBRARY_ABOBA: ${OpenMP_omp_LIBRARY}")
 
 
-# Определение путей к файлам с данными для графиков
-set(PATH_TO_CONVERGENCE_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/convergence.csv")
-set(PATH_TO_CALCULATED_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/my_data.csv")
-set(PATH_TO_ANALYTICAL_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/analytical_data.csv")
+# Определение путей к директории с файлами, содержащими данные для графиков от КАЖДОГО ПРОЦЕССА
+set(PATH_TO_CONVERGENCE_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/convergence.csv") # Это пока хз, оставлю как есть
+set(PATH_TO_CALCULATED_DATA_DIRECTORY "${CMAKE_SOURCE_DIR}/input_for_graphs/my_data/")
+set(PATH_TO_ANALYTICAL_DATA_DIRECTORY "${CMAKE_SOURCE_DIR}/input_for_graphs/analytical_data/")
+
+# # Определение путей к файлам с данными для графиков
+# set(PATH_TO_CONVERGENCE_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/convergence.csv")
+# set(PATH_TO_CALCULATED_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/my_data.csv")
+# set(PATH_TO_ANALYTICAL_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/analytical_data.csv")
 
 # Передача переменных в компилятор
 add_definitions(-DPATH_TO_CONVERGENCE_DATA="${PATH_TO_CONVERGENCE_DATA}")
-add_definitions(-DPATH_TO_CALCULATED_DATA="${PATH_TO_CALCULATED_DATA}")
-add_definitions(-DPATH_TO_ANALYTICAL_DATA="${PATH_TO_ANALYTICAL_DATA}")
+add_definitions(-DPATH_TO_CALCULATED_DATA_DIRECTORY="${PATH_TO_CALCULATED_DATA_DIRECTORY}")
+add_definitions(-DPATH_TO_ANALYTICAL_DATA_DIRECTORY="${PATH_TO_ANALYTICAL_DATA_DIRECTORY}")
+# add_definitions(-DPATH_TO_CALCULATED_DATA="${PATH_TO_CALCULATED_DATA}")
+# add_definitions(-DPATH_TO_ANALYTICAL_DATA="${PATH_TO_ANALYTICAL_DATA}")
+
 
 set(TEST_LIB GTestLib)
 set(TEST_TARGET_NAME Tests)

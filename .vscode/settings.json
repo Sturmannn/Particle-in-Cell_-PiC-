@@ -64,6 +64,13 @@
         "unordered_map": "cpp",
         "xhash": "cpp",
         "complex": "cpp",
-        "random": "cpp"
-    }
+        "random": "cpp",
+        "chrono": "cpp",
+        "codecvt": "cpp",
+        "forward_list": "cpp",
+        "filesystem": "cpp",
+        "ratio": "cpp"
+    },
+    "C_Cpp.default.cppStandard": "c++17",
+    "C_Cpp.default.cStandard": "c17"
 }

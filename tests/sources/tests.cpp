@@ -57,7 +57,9 @@ gtest::Test_obj& gtest::Test_obj::operator=(Test_obj&& other_test_field) noexcep
 
 void gtest::Test_obj::analytical_default_solution(const Component E, const Component B, const double t, const Shift _shift)
 {
+  // Условие куранта проверяется на всех процессах, и там есть exit(-1) в случае ошибки
   Courant_condition_check(_shift);
+
   double coeff = (_shift == Shift::shifted) ? 0.5 : 0.0;
 
   Field::ComputingField& Ex = analytical_field.get_Ex();
@@ -89,13 +91,51 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
   double delta_coordinate = 0.0;
   double sign = 0.0;
 
-  
+  int rank = 0;
+  int world_size = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
   auto helper_set_data = [&] \
     (std::pair<double, double>&&_ai_bi, double delta, double _sign) {
     // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
     ai_bi = _ai_bi;
-    coordinate = ai_bi.first;
+    
+    std::cout << "rank = " << rank << " Nx = " << field.get_Nx() << " Ny = " << field.get_Ny() << " Nz = " << field.get_Nz() << " delta = " << delta << std::endl;
+
+    // coordinate = ai_bi.first;
     delta_coordinate = delta;
+
+    // Вектор значений соответствующих размеров (Nx или Ny или Nz) для каждого процесса
+    std::vector<int64_t> all_N(world_size);
+    int64_t shift = 0;
+
+    // ЗДЕСЬ РАЗБИЕНИЕ ТОЛЬКО ПО СТРОКАМ (OY) В ДВУМЕРНОМ СЛУЧАЕ И ТОЛЬКО ПРИ ДВИЖЕНИИ ПО OY. ДАЛЬШЕ НЕОБХОДИМО БУДЕТ МЕНЯТЬ, ЕСЛИ ПО РАЗНЫМ ОСЯМ РАЗБИВАТЬ
+    Axis axis = FDTD::FDTD::get_axis(E, B);
+    // Опасное место, так как шаг может быть недостаточно сдвинут.
+    // Насколько я понял, shift и coordinate должны вычисляться по-разному, в зависимости от выбранной оси ДВИЖЕНИЯ
+    // Это необходимо, так как на данный момент разбиение по процессам происходит только по OY
+    if (axis == Axis::Ox) {
+      int64_t local_Nx = field.get_Nx();
+      MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      // coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
+    }
+    else if (axis == Axis::Oy) {
+      int64_t local_Ny = field.get_Ny();
+      MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
+    }
+    // С OZ пока вообще непонятно, так как пока что не предполагается движение по OZ
+    else if (axis == Axis::Oz) {
+      int64_t local_Nz = field.get_Nz();
+      MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
+    }
+
+    // std::cout << "rank = " << rank << " coordinate = " << coordinate << std::endl;
     sign = _sign;
   };
 
@@ -119,10 +159,12 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     int64_t axis_2_counter = std::get<1>(axis_2);
     int64_t axis_3_counter = std::get<1>(axis_3);
 
-
     switch (std::get<0>(axis_1))
     {
-    case Axis::Ox: i = &axis_1_counter; break;
+    case Axis::Ox: 
+      i = &axis_1_counter; 
+      // axis_1_counter += rank * field.get_Nx();
+      break;
     case Axis::Oy: j = &axis_1_counter; break;
     case Axis::Oz: k = &axis_1_counter; break;
     default: break;
@@ -142,7 +184,6 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     default: break;
     }
 
-
     for (axis_1_counter = std::get<1>(axis_1); axis_1_counter < std::get<2>(axis_1); ++(axis_1_counter), coordinate += delta_coordinate)
       for (axis_2_counter = std::get<1>(axis_2); axis_2_counter < std::get<2>(axis_2); ++(axis_2_counter))
         for (axis_3_counter = std::get<1>(axis_3); axis_3_counter < std::get<2>(axis_3); ++(axis_3_counter))
@@ -155,16 +196,15 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
           B_field(*i, *j, *k) =
             sin(2.0 * PI * (coordinate + delta_coordinate * coeff - ai_bi.first - sign * C * t) /
               (ai_bi.second - ai_bi.first));
-          // std::cout << "i = " << *i << " j = " << *j << " k = " << *k << '\n';
         }
     boundary_synchronization();
   };
 
-  // auto set_computational_data = [this, &helper_set_data, &loop_function, &E, &B]() {
   auto set_computational_data = [&]() {
 
+    // Все эти _Nz пока неизменные, для MPI возможно потребуется изменить, если нужно будет разбивать оси по Oz
+    // Может быть эти _Nz здесь не нужны, так как проверка в самом конструкторе. После готовой реализации MPI следует проверить.
     int64_t _Nz = (field.get_Nz() > 1) ? field.get_Nz() : 0; // Учитываем случай 2D
-    // int64_t _Nz_counter = (_Nz > 1) ? 0 : _Nz - 1; // Это эквивалентно -1 для 2D
     int64_t _Nz_counter = (_Nz > 1) ? 0 : -1; // Это эквивалентно -1 для 2D
 
     // OX
@@ -494,13 +534,45 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
   double delta_coordinate = 0.0;
   double sign = 0.0;
 
+  int rank = 0;
+  int world_size = 0;
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
 
   auto helper_set_data = [&] \
     (std::pair<double, double>&&_ai_bi, double delta, double _sign) {
     // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
     ai_bi = _ai_bi;
-    coordinate = ai_bi.first;
+    
+    // coordinate = ai_bi.first;
     delta_coordinate = delta;
+
+    // Вектор значений соответствующих размеров (Nx или Ny или Nz) для каждого процесса
+    std::vector<int64_t> all_N(world_size);
+    int64_t shift = 0;
+
+    Axis axis = FDTD::FDTD::get_axis(E, B);
+    // Опасное место, так как шаг может быть недостаточно сдвинут.
+    if (axis == Axis::Ox) {
+      int64_t local_Nx = field.get_Nx();
+      MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      // coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
+    }
+    else if (axis == Axis::Oy) {
+      int64_t local_Ny = field.get_Ny();
+      MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
+    }
+    else if (axis == Axis::Oz) {
+      int64_t local_Nz = field.get_Nz();
+      MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
+    }
+
     sign = _sign;
   };
 
@@ -555,8 +627,47 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
           B_field(*i, *j, *k) =
             sin(2.0 * PI * (coordinate + delta_coordinate * coeff - ai_bi.first) /
               (ai_bi.second - ai_bi.first));
+
         }
     boundary_synchronization();
+    // if (rank == 0) {
+    //     for (int i = 0; i < Bz.get_field().size(); ++i)
+    //         Bz.get_field()[i] = i;
+    // }
+    // else {
+    //     for (int i = 0; i < Bz.get_field().size(); ++i) {
+    //         Bz.get_field()[i] = 7;
+    //     }
+    // }
+    // for (int proc = 0; proc < 2; ++proc) {
+    //     if (rank == proc) {
+    //         // for (int i = 0; i < Ex.get_field().size(); ++i) {
+    //         //     E_field.get_field()[i] = rank * E_field.get_Ny() * (E_field.get_Nx() + 2) + i;
+    //         // }
+    //         // Вывод значений для проверки
+    //         std::cout << "Process " << rank << " values: ";
+    //         for (int i = 0; i < Bz.get_field().size(); ++i) {
+    //             std::cout << Bz.get_field()[i] << " ";
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    //     // Синхронизация процессов
+    //     MPI_Barrier(MPI_COMM_WORLD);
+    // }
+    // boundary_synchronization();
+    //     for (int proc = 0; proc < 2; ++proc) {
+    //     if (rank == proc) {
+    //         // Вывод значений для проверки
+    //         std::cout << "Process " << rank << " values: ";
+    //         for (int i = 0; i < Bz.get_field().size(); ++i) {
+    //             std::cout << Bz.get_field()[i] << " ";
+    //         }
+    //         std::cout << std::endl;
+    //     }
+    //     // Синхронизация процессов
+    //     MPI_Barrier(MPI_COMM_WORLD);
+    // }
+    // exit(-100);
   };
 
   auto set_computational_data = [&]() {

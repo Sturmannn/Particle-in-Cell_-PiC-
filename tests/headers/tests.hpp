@@ -63,9 +63,20 @@ private:
 };
 
 TEST(Test_version_comparison, shifted_OZ) {
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 16};
+  // Потенциальны проблемы при запуске:
+  // 1. Ось по OZ, а сетка 2D
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {32, 32, 1};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
+  std::tuple<double, double, double> dx_dy_dz = 
+        {(std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / static_cast<double>(std::get<0>(Nx_Ny_Nz)),
+         (std::get<1>(bx_by_bz) - std::get<1>(ax_ay_az)) / static_cast<double>(std::get<1>(Nx_Ny_Nz)),
+         (std::get<2>(bx_by_bz) - std::get<2>(ax_ay_az)) / static_cast<double>(std::get<2>(Nx_Ny_Nz))};
+  
+  if (std::get<2>(Nx_Ny_Nz) > 1) {
+    std::get<2>(dx_dy_dz) = 0.0;
+  }
+
   double dt = 2e-15;
   // dt = 0.4625e-12;
   // double t = 2e-14;
@@ -80,43 +91,121 @@ TEST(Test_version_comparison, shifted_OZ) {
   dt = 0.25 * dx / C;
   int64_t t = 250; // Задание количества итераций
 
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+    
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
   Component E = Component::Ey;
-  Component B = Component::Bx;
+  Component B = Component::Bz;
   Shift shift = Shift::shifted;
+  
+  if (rank == 0) std::cout << "Axis: " << FDTD::FDTD::axisToString(E, B) << std::endl;
 
 
-  FDTD::FDTD field(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
+
+// =========================================================
+
+// Пока что MPI для 2D и разбиение по процессам идёт по оси OY
+// В дальнейшем скорее всего должен быть выбор, по какой из осей разбивать
+// НЕ ЗАБЫТЬ ТО ЖЕ СДЕЛАТЬ ДЛЯ ВТОРОГО ТЕСТОВОГО ПРИМЕРА
+
+  int64_t local_Nx = std::get<0>(Nx_Ny_Nz);
+  int64_t local_Ny = (std::get<1>(Nx_Ny_Nz) + 2 * world_size) / world_size;
+
+  // Это рассчитывается с учётом дополнительных граничных полей.
+  // В реализации же этого кода, они учитываются в конструктуре, поэтому этот результат нужно будет уменьшить на 2
+  if (rank < (std::get<1>(Nx_Ny_Nz) + 2 * world_size) % world_size) local_Ny += 1;
+  
+  // Уменьшаем на 2, так как в конструкторе учитываются граничные поля
+  // if (world_size > 1) local_Ny -= 2;
+  local_Ny -= 2;
+
+  // Пока что Nz = 1
+  std::tuple<int64_t, int64_t, int64_t> local_Nx_Ny_Nz = {local_Nx, local_Ny, 1};
+
+
+// =========================================================
+
+
+  FDTD::FDTD field(local_Nx_Ny_Nz, ax_ay_az, bx_by_bz, dx_dy_dz, dt);
   Test_obj test(E, B, std::move(field));
+
+  // std::vector<double>& vector = test.get_field().get_Ex().get_field();
+  // if (rank == 0) {
+  //   for (int64_t i = 0; i < vector.size(); ++i) {
+  //     vector[i] = i;
+  //     std::cout << vector[i] << " ";
+  //   }
+  //   std::cout << '\n' << std::endl;
+  // }
+  //
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 1) {
+  //   for (int64_t i = 0; i < vector.size(); ++i) {
+  //     vector[i] = i + 48;
+  //     std::cout << vector[i] << " ";
+  //   }
+  //   std::cout << '\n' << std::endl;
+  // }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 2) {
+  //   for (int64_t i = 0; i < vector.size(); ++i) {
+  //     vector[i] = i + 84;
+  //     std::cout << vector[i] << " ";
+  //   }
+  //   std::cout << '\n' << std::endl;
+  // }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  //
+  //
+  // test.get_field().boundary_synchronization();
+  // if (rank == 0) {
+  //   for (int64_t i = 0; i < vector.size(); ++i) {
+  //     std::cout << test.get_field().get_Ex().get_field()[i] << " ";
+  //   }
+  //   std::cout << '\n' << std::endl;
+  // }
+  //
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 1) {
+  //   for (int64_t i = 0; i < vector.size(); ++i) {
+  //     std::cout << test.get_field().get_Ex().get_field()[i] << " ";
+  //   }
+  //   std::cout << '\n' << std::endl;
+  // }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  // if (rank == 2) {
+  //   for (int64_t i = 0; i < vector.size(); ++i) {
+  //     std::cout << test.get_field().get_Ex().get_field()[i] << " ";
+  //   }
+  //   std::cout << '\n' << std::endl;
+  // }
+  // MPI_Barrier(MPI_COMM_WORLD);
+  //
+  // exit(-1);
+
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);
   test.numerical_solution(t, shift);
 
-  //   #pragma omp parallel
-  //   {
-  //      std::cout << "Number of threads: " << omp_get_num_threads() << std::endl;
-  //   }
-  // std::cout << omp_get_num_procs() << std::endl;
-
-    int world_size;
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-    
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-
-    std::cout << "Hello from process " << world_rank << " of " << world_size << std::endl;
+  Field::ComputingField::clear_files(path_to_calculated_data_directory);
+  Field::ComputingField::clear_files(path_to_analytical_data_directory);
 
 
-    Field::ComputingField::clear_file(path_to_calculated_data);
-    Field::ComputingField::clear_file(path_to_analytic_data);
+  // Поскольку MPI разбиение на данный момент только по OY, то в python скрипте для графиков происходит сбор всех данных \
+  с соответствующих процессов. Поэтому, при запуске на OX, данные дублируются в графиках
+  test.get_field().write_fields_to_file(path_to_calculated_data_directory, E, B,
+                                  test.get_delta_space());
+  test.get_analytical_field().write_fields_to_file(path_to_analytical_data_directory, E, B,
+                                              test.get_delta_space());
 
-    test.get_field().write_fields_to_file(path_to_calculated_data, E, B,
-                                    test.get_delta_space());
-    test.get_analytical_field().write_fields_to_file(path_to_analytic_data, E, B,
-                                               test.get_delta_space());
+// =============================================================================
 
   ////// Проверка сходимости, создаём новый объект:
   // НЕ ЗАБЫТЬ! Если уменьшяю dt в 4 раза, то и t увеличиваю в 4 раза
-  Nx_Ny_Nz = {32, 32, 32};
+  Nx_Ny_Nz = {128, 128, 1};
   // Ошибка уменьшается в 4 раза
   if (shift == Shift::shifted) { 
     dt /= 2;
@@ -131,27 +220,43 @@ TEST(Test_version_comparison, shifted_OZ) {
     // double end_time = omp_get_wtime();
   // std::cout << "Time = " << end_time - start_time << std::endl;
 
-  FDTD::FDTD field_2(Nx_Ny_Nz, ax_ay_az, bx_by_bz, dt);
-  Test_obj other_test(E,B, std::move(field_2));
-  other_test.analytical_default_solution(E, B, t * dt, shift);
-  other_test.set_default_field(E, B, shift);
-  other_test.numerical_solution(t, shift); // t для без сдвигов, а t * dt для сдвигов (не так...Учёт идёт в int/double)
-  test.print_convergence(other_test);
 
-  int rank = 0;
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  if (rank == 0) {
-    // Field::ComputingField::clear_file(path_to_calculated_data);
-    // Field::ComputingField::clear_file(path_to_analytic_data);
+// =============================================================================
 
-    // test.get_field().write_fields_to_file(path_to_calculated_data, E, B,
-    //                                 test.get_delta_space());
-    // test.get_analytical_field().write_fields_to_file(path_to_analytic_data, E, B,
-    //                                            test.get_delta_space());
-  }
+  // local_Nx = std::get<0>(Nx_Ny_Nz);
+  // local_Ny = (std::get<1>(Nx_Ny_Nz) + 2 * world_size) / world_size;
 
-  std::cout << "OK" << std::endl;
+  // // Это рассчитывается с учётом дополнительных граничных полей.
+  // // В реализации же этого кода, они учитываются в конструктуре, поэтому этот результат нужно будет уменьшить на 2
+  // if (rank < (std::get<1>(Nx_Ny_Nz) + 2 * world_size) % world_size) local_Ny += 1;
+  
+  // // Уменьшаем на 2, так как в конструкторе учитываются граничные поля
+  // // if (world_size > 1) local_Ny -= 2;
+  // local_Ny -= 2;
+
+  // // Пока что Nz = 1
+  // local_Nx_Ny_Nz = {local_Nx, local_Ny, 1};
+
+  // dx_dy_dz = 
+  //       {(std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / static_cast<double>(std::get<0>(Nx_Ny_Nz)),
+  //        (std::get<1>(bx_by_bz) - std::get<1>(ax_ay_az)) / static_cast<double>(std::get<1>(Nx_Ny_Nz)),
+  //        (std::get<2>(bx_by_bz) - std::get<2>(ax_ay_az)) / static_cast<double>(std::get<2>(Nx_Ny_Nz))};
+
+  // FDTD::FDTD field_2(local_Nx_Ny_Nz, ax_ay_az, bx_by_bz, dx_dy_dz, dt);
+  // Test_obj other_test(E,B, std::move(field_2));
+  // other_test.analytical_default_solution(E, B, t * dt, shift);
+  // other_test.set_default_field(E, B, shift);
+  // other_test.numerical_solution(t, shift); // t для без сдвигов, а t * dt для сдвигов (не так...Учёт идёт в int/double)
+  // test.print_convergence(other_test);
+
+// =============================================================================
 }
+
+
+
+
+
+
 
 // TEST(Test, unshifted_field_test_several_iterations_2d) {
 //   std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 1}; // Start size of the field

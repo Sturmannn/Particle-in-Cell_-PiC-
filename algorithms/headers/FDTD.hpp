@@ -5,6 +5,8 @@
 #include <omp.h>
 #include <mpi.h>
 #include <tuple>
+#include <string>
+#include <algorithm>
 
 #include "Field.hpp"
 
@@ -22,7 +24,8 @@ public:
   FDTD() = delete;
   FDTD(const std::tuple<int64_t, int64_t, int64_t> &Nx_Ny_Nz,
        const std::tuple<double, double, double> &ax_ay_az,
-       const std::tuple<double, double, double> &bx_by_bz, double _dt);
+       const std::tuple<double, double, double> &bx_by_bz,
+       const std::tuple<double, double, double> &dx_dy_dz, double _dt);
   FDTD(const FDTD &_fields);
   FDTD(FDTD &&_fields) noexcept;
   ~FDTD() = default;
@@ -80,13 +83,14 @@ public:
   void shifted_field_update(const int64_t t);
 
   void
-  write_fields_to_file(const char *path, Component E, Component B,
+  write_fields_to_file(const char *directory_path, Component E, Component B,
                        const double delta,
                        const int64_t row_number = 0); // The col is fixed
 
   void clear_fields(void) noexcept;
 
   static Axis get_axis(const Component E, const Component B);
+  static std::string axisToString(const Component E, const Component B);
 
   void boundary_synchronization();
   void boundary_synchronization_3D();
