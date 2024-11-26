@@ -1,0 +1,47 @@
+// {
+//     "version": "0.2.0",
+//     "configurations": [
+//        {
+//           "name": "Launch Tests",
+//           "type": "cppdbg",
+//           "request": "launch",
+//         //   "program": "${workspaceFolder}/build/Tests", // путь к исполняемому файлу Tests
+//           "program": "${command:cmake.launchTargetPath}",
+//           "args": [], // аргументы командной строки, если требуются
+//           "stopAtEntry": false,
+//           "cwd": "${workspaceFolder}",
+//           "environment": [],
+//           "externalConsole": false,
+//           "MIMode": "lldb", // или gdb, если вы используете его
+//           "setupCommands": [
+//              {
+//                 "description": "Enable pretty-printing for gdb",
+//                 "text": "-enable-pretty-printing",
+//                 "ignoreFailures": true
+//              }
+//           ],
+//           "preLaunchTask": "build" // или другое имя задачи, которая собирает проект
+//        }
+//     ]
+//  }
+
+ {
+    "version": "0.2.0",
+    "configurations": [
+       {
+          "name": "Run MPI Program",
+          "type": "cppvsdbg", // Используется для запуска без отладки
+          "request": "launch",
+          "program": "mpiexec.exe",
+          "args": [
+             "-np", "4", // количество процессов
+             "${command:cmake.launchTargetPath}" // путь к вашему исполняемому файлу
+          ],
+          "cwd": "${workspaceFolder}",
+          "stopAtEntry": false,
+          "console": "integratedTerminal" // или "externalTerminal", если нужно
+       }
+    ]
+ }
+ 
+ 
