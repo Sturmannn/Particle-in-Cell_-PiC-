@@ -16,10 +16,14 @@ enum class Shift { shifted, unshifted };
 class Test_obj {
 public:
   Test_obj() = delete;
+  Test_obj(const Component _E, const Component _B, int64_t Nx, int64_t Ny); // Вариант пока что для 2D
   Test_obj(const Component _E, const Component _B, FDTD::FDTD &_field);
   Test_obj(const Component _E, const Component _B, FDTD::FDTD &&_field);
   Test_obj(const Test_obj &other_test_field);
-  ~Test_obj() = default;
+  ~Test_obj() {MPI_Comm_free(&cart_comm);};
+
+  void initialize_field(const FDTD::FDTD &field);
+  void initialize_field(FDTD::FDTD &&field);
 
   Test_obj &operator=(const Test_obj &other_test_field);
   Test_obj &operator=(const FDTD::FDTD &other_test_field);
@@ -36,8 +40,8 @@ public:
   void set_default_field(const Component E, const Component B,
                          const Shift _shift);
 
-  void numerical_solution(const double t, const Shift _shift);
-  void numerical_solution(const int64_t t, const Shift _shift);
+  void numerical_solution(const double t, const Shift _shift, MPI_Comm cart_comm);
+  void numerical_solution(const int64_t t, const Shift _shift, MPI_Comm cart_comm);
 
   double get_delta_space(void) const;
 
@@ -48,11 +52,28 @@ public:
   static void write_convergence_to_file(const char *path,
                                         std::vector<double> &data);
 
+  MPI_Comm &get_cart_comm(void) { return cart_comm; }
+  
+  int (&get_coords(void))[2] { return coords; }
+  int (&get_dims(void))[2] { return dims; }
+
+  int64_t get_local_Nx(void) const noexcept { return local_Nx; }
+  int64_t get_local_Ny(void) const noexcept { return local_Ny; }
+  int64_t get_local_Nz(void) const noexcept { return local_Nz; }
+  std::tuple<int64_t, int64_t, int64_t> get_local_Nx_Ny_Nz(void) const noexcept {
+    return std::make_tuple(local_Nx, local_Ny, local_Nz);
+  }
+
+
 
 private:
   FDTD::FDTD field;
   FDTD::FDTD analytical_field;
   Component E, B; // Компоненты поля
+  MPI_Comm cart_comm; // Декартова топология
+  int dims[2], coords[2]; // Размеры топологии и координаты процесса
+  int64_t local_Nx, local_Ny, local_Nz; // Размеры поддомена
+
   void Courant_condition_check(const Shift _shift) const noexcept;
   void set_default_field_or_analytical_default_solution(const Component E,
                                                         const Component B,
@@ -60,12 +81,57 @@ private:
                                                         std::function<void(std::tuple<Axis, int64_t, int64_t>,
                                                           std::tuple<Axis, int64_t, int64_t>,
                                                           std::tuple<Axis, int64_t, int64_t>)> loop_function);
+  void create_cartesian_topology(int world_size);
+  
+  // Пока что здесь только 2D случай
+  void set_subdomain_sizes(int64_t Nx, int64_t Ny);
 };
+
+// Пример декартовой топологии для 2D сетки (но без периодических граничных условий)
+// [ 6 ]---[ 7 ]---[ 8 ]
+//   |       |       |
+// [ 3 ]---[ 4 ]---[ 5 ]
+//   |       |       |
+// [ 0 ]---[ 1 ]---[ 2 ]
+
+// Декартова топология для MPI
+// void create_cartesian_topology(int world_size, int dims[2], int coords[2], MPI_Comm &cart_comm) {
+//     // Определение размеров декартовой топологии (сколько процессов вдоль каждой из осей)
+//     dims[0] = dims[1] = 0;
+//     MPI_Dims_create(world_size, 2, dims); // 2 - количество измерений (для 2D сетки)
+
+//     // Создание декартовой топологии
+//     int periods[2] = {1, 1}; // Для периодических граничных условий
+//     // Возможно с переодичностью будет попроще, но не факт.
+
+//     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
+
+//     // Получение координаты текущего процесса в топологии
+//     int rank;
+//     MPI_Comm_rank(cart_comm, &rank);
+//     MPI_Cart_coords(cart_comm, rank, 2, coords);
+// }
+
+// void set_subdomain_sizes(int64_t Nx, int64_t Ny, int dims[2], int coords[2], int64_t &local_Nx, int64_t &local_Ny) {
+//     // Пока что здесь только 2D случай
+
+//     // Определение размера блоков матрицы для каждого процесса
+//     local_Nx = (Nx + 2 * dims[0]) / dims[0]; // +2 для граничных полей
+//     local_Ny = (Ny + 2 * dims[1]) / dims[1]; // +2 для граничных полей
+
+//     // Учет остатка, если количество размер сетки не кратен количеству процессов
+//     if (coords[0] < (Nx + 2 * dims[0]) % dims[0]) local_Nx++;
+//     if (coords[1] < (Ny + 2 * dims[1]) % dims[1]) local_Ny++;
+
+//     // Уменьшение на 2, так как в конструкторе учитываются граничные поля
+//     local_Nx -= 2;
+//     local_Ny -= 2;
+// }
 
 TEST(Test_version_comparison, shifted_OZ) {
   // Потенциальны проблемы при запуске:
   // 1. Ось по OZ, а сетка 2D
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {32, 32, 1};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {10, 10, 1};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   std::tuple<double, double, double> dx_dy_dz = 
@@ -76,19 +142,10 @@ TEST(Test_version_comparison, shifted_OZ) {
   if (std::get<2>(Nx_Ny_Nz) > 1) {
     std::get<2>(dx_dy_dz) = 0.0;
   }
+  // double dt = 2e-15;
 
-  double dt = 2e-15;
-  // dt = 0.4625e-12;
-  // double t = 2e-14;
-
-  // double t = 1e-12;
-  // t = 1e-10;
-
-  // double dx = (bx_by.first - ax_ay.first) / Nx_Ny.first;
-  double dx =
-      (std::get<0>(bx_by_bz) - std::get<0>(ax_ay_az)) / std::get<0>(Nx_Ny_Nz);
-
-  dt = 0.25 * dx / C;
+  double dx = std::get<0>(dx_dy_dz);
+  double dt = 0.25 * dx / C;
   int64_t t = 250; // Задание количества итераций
 
     int world_size;
@@ -96,6 +153,10 @@ TEST(Test_version_comparison, shifted_OZ) {
     
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    // int dims[2], coords[2];
+    // MPI_Comm cart_comm;
+    // create_cartesian_topology(world_size, dims, coords, cart_comm);
 
   Component E = Component::Ey;
   Component B = Component::Bz;
@@ -111,26 +172,37 @@ TEST(Test_version_comparison, shifted_OZ) {
 // В дальнейшем скорее всего должен быть выбор, по какой из осей разбивать
 // НЕ ЗАБЫТЬ ТО ЖЕ СДЕЛАТЬ ДЛЯ ВТОРОГО ТЕСТОВОГО ПРИМЕРА
 
-  int64_t local_Nx = std::get<0>(Nx_Ny_Nz);
-  int64_t local_Ny = (std::get<1>(Nx_Ny_Nz) + 2 * world_size) / world_size;
+  // int64_t local_Nx = std::get<0>(Nx_Ny_Nz);
+  // int64_t local_Ny = (std::get<1>(Nx_Ny_Nz) + 2 * world_size) / world_size;
 
-  // Это рассчитывается с учётом дополнительных граничных полей.
-  // В реализации же этого кода, они учитываются в конструктуре, поэтому этот результат нужно будет уменьшить на 2
-  if (rank < (std::get<1>(Nx_Ny_Nz) + 2 * world_size) % world_size) local_Ny += 1;
+  // // Это рассчитывается с учётом дополнительных граничных полей.
+  // // В реализации же этого кода, они учитываются в конструктуре, поэтому этот результат нужно будет уменьшить на 2
+  // if (rank < (std::get<1>(Nx_Ny_Nz) + 2 * world_size) % world_size) local_Ny += 1;
   
-  // Уменьшаем на 2, так как в конструкторе учитываются граничные поля
-  // if (world_size > 1) local_Ny -= 2;
-  local_Ny -= 2;
+  // // Уменьшаем на 2, так как в конструкторе учитываются граничные поля
+  // // if (world_size > 1) local_Ny -= 2;
+  // local_Ny -= 2;
+
+
+  // int64_t local_Nx, local_Ny;
+  // set_subdomain_sizes(std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), dims, coords, local_Nx, local_Ny);
+
+  // std::cout << "Rank = " << rank << " Local_Nx = " << local_Nx << " Local_Ny = " << local_Ny << std::endl;
 
   // Пока что Nz = 1
-  std::tuple<int64_t, int64_t, int64_t> local_Nx_Ny_Nz = {local_Nx, local_Ny, 1};
+  // std::tuple<int64_t, int64_t, int64_t> local_Nx_Ny_Nz = {local_Nx, local_Ny, 1};
 
 
 // =========================================================
 
+  Test_obj test(E, B, std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz)); // Пока что 2D
+  // Внимательно проверять, что в field нужно передавать именно local размеры
+  FDTD::FDTD field(test.get_local_Nx_Ny_Nz(), ax_ay_az, bx_by_bz, dx_dy_dz, dt); 
+  test.initialize_field(field);
 
-  FDTD::FDTD field(local_Nx_Ny_Nz, ax_ay_az, bx_by_bz, dx_dy_dz, dt);
-  Test_obj test(E, B, std::move(field));
+
+  // FDTD::FDTD field(local_Nx_Ny_Nz, ax_ay_az, bx_by_bz, dx_dy_dz, dt);
+  // Test_obj test(E, B, std::move(field));
 
   // std::vector<double>& vector = test.get_field().get_Ex().get_field();
   // if (rank == 0) {
@@ -188,7 +260,8 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);
-  test.numerical_solution(t, shift);
+  test.numerical_solution(t, shift, test.get_cart_comm());
+
 
   Field::ComputingField::clear_files(path_to_calculated_data_directory);
   Field::ComputingField::clear_files(path_to_analytical_data_directory);
@@ -198,6 +271,7 @@ TEST(Test_version_comparison, shifted_OZ) {
   с соответствующих процессов. Поэтому, при запуске на OX, данные дублируются в графиках
   test.get_field().write_fields_to_file(path_to_calculated_data_directory, E, B,
                                   test.get_delta_space());
+    std::cout << "Hello from rank " << rank << ", "<< test.get_coords()[0] << " " << test.get_coords()[1] << std::endl;
   test.get_analytical_field().write_fields_to_file(path_to_analytical_data_directory, E, B,
                                               test.get_delta_space());
 

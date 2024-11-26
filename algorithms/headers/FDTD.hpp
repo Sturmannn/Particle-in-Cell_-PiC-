@@ -18,9 +18,13 @@ constexpr double C = 29979245800.0; // speed of light (CGS)
 namespace FDTD {
 
 enum class Component { Ex, Ey, Ez, Bx, By, Bz };
+std::ostream &operator<<(std::ostream &os, const Component &comp);
 
 class FDTD {
 public:
+
+  static FDTD create_trash(); // “ак как конструктор по умолчанию удален
+
   FDTD() = delete;
   FDTD(const std::tuple<int64_t, int64_t, int64_t> &Nx_Ny_Nz,
        const std::tuple<double, double, double> &ax_ay_az,
@@ -76,11 +80,11 @@ public:
   void set_dt(double _dt) { dt = _dt; }
   void set_Nx_Ny_Nz(int64_t _Nx, int64_t _Ny, int64_t _Nz);
 
-  void field_update(const double t);
-  void field_update(const int64_t t);
+  void field_update(const double t, MPI_Comm cart_comm);
+  void field_update(const int64_t t, MPI_Comm cart_comm);
 
-  void shifted_field_update(const double t);
-  void shifted_field_update(const int64_t t);
+  void shifted_field_update(const double t, MPI_Comm cart_comm);
+  void shifted_field_update(const int64_t t, MPI_Comm cart_comm);
 
   void
   write_fields_to_file(const char *directory_path, Component E, Component B,
@@ -92,8 +96,8 @@ public:
   static Axis get_axis(const Component E, const Component B);
   static std::string axisToString(const Component E, const Component B);
 
-  void boundary_synchronization();
-  void boundary_synchronization_3D();
+  void boundary_synchronization(MPI_Comm cart_comm);
+  void boundary_synchronization_3D(MPI_Comm cart_comm);
 private:
   // friend class Test_obj;
   int64_t Nx, Ny, Nz;                           

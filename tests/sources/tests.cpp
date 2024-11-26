@@ -1,7 +1,24 @@
 #include "tests.hpp"
 
-gtest::Test_obj::Test_obj(const Component _E, const Component _B, FDTD::FDTD& _field) : field(_field), analytical_field(field)
-{
+gtest::Test_obj::Test_obj(const Component _E, const Component _B, int64_t Nx, int64_t Ny) : field{FDTD::FDTD::create_trash()}, analytical_field{FDTD::FDTD::create_trash()} {
+  // Поля изначально заполняются мусором (в списке инициализации)
+
+  int world_size = 0;
+  int rank = 0;
+  this->E = _E;
+  this->B = _B;
+
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  create_cartesian_topology(world_size);
+
+  set_subdomain_sizes(Nx, Ny);
+}
+
+gtest::Test_obj::Test_obj(const Component _E, const Component _B,
+                          FDTD::FDTD &_field)
+    : field(_field), analytical_field(field) {
   E = _E;
   B = _B;
 }
@@ -17,6 +34,17 @@ gtest::Test_obj::Test_obj(const Test_obj& other_test_field) : field(other_test_f
 {
   E = other_test_field.E;
   B = other_test_field.B;
+}
+
+void gtest::Test_obj::initialize_field(const FDTD::FDTD &field) {
+  this->field = field;
+  analytical_field = field;
+}
+
+void gtest::Test_obj::initialize_field(FDTD::FDTD &&field) {
+  this->field = std::move(field);
+  analytical_field = field;
+  field.clear_fields();
 }
 
 gtest::Test_obj& gtest::Test_obj::operator=(const Test_obj& other_test_field)
@@ -101,14 +129,26 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
     ai_bi = _ai_bi;
     
+    // int (&coords)[2] ada = get_coords();
+    std::cout << "rank = " << rank << " coords[0] = " << coords[0] << " coords[1] = " << coords[1] << std::endl;
+
     std::cout << "rank = " << rank << " Nx = " << field.get_Nx() << " Ny = " << field.get_Ny() << " Nz = " << field.get_Nz() << " delta = " << delta << std::endl;
 
     // coordinate = ai_bi.first;
     delta_coordinate = delta;
 
     // Вектор значений соответствующих размеров (Nx или Ny или Nz) для каждого процесса
-    std::vector<int64_t> all_N(world_size);
+    std::vector<int64_t> all_local_Nx(world_size);
+    std::vector<int64_t> all_local_Ny(world_size);
+    int64_t local_Nx = field.get_Nx();
+    int64_t local_Ny = field.get_Ny();
+
+    
+
+    MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_local_Nx.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+    MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_local_Ny.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
     int64_t shift = 0;
+
 
     // ЗДЕСЬ РАЗБИЕНИЕ ТОЛЬКО ПО СТРОКАМ (OY) В ДВУМЕРНОМ СЛУЧАЕ И ТОЛЬКО ПРИ ДВИЖЕНИИ ПО OY. ДАЛЬШЕ НЕОБХОДИМО БУДЕТ МЕНЯТЬ, ЕСЛИ ПО РАЗНЫМ ОСЯМ РАЗБИВАТЬ
     Axis axis = FDTD::FDTD::get_axis(E, B);
@@ -117,21 +157,38 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     // Это необходимо, так как на данный момент разбиение по процессам происходит только по OY
     if (axis == Axis::Ox) {
       int64_t local_Nx = field.get_Nx();
-      MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
-      for (int i = 0; i < rank; ++i) shift += all_N[i];
+
+      // for (int i = coords[0]; i < get_dims()[0]; ++i) shift += all_local_Nx[i]; // Для OX
+      // for (int i = coords[1]; i < get_dims()[1]; ++i) shift += all_local_Ny[i]; // Для OY
+
+      for (int coordX = get_coords()[0]; coordX > 0; --coordX) {
+        int neighbor_coords[2] = {coordX - 1, get_coords()[1]}; // Координаты соседнего левого процесса
+        int other_rank = 0;
+        MPI_Cart_rank(cart_comm, neighbor_coords, &other_rank); // Получаем ранг соседнего процесса
+        shift += all_local_Nx[other_rank]; 
+      }        
+      coordinate = ai_bi.first + delta_coordinate * shift;
+      // ПОКА ЧТО ТОЛЬКО ПРИ ДВИЖЕНИИ ПО OX
+      // ВОЗМОЖНО ЕСТЬ ПРОБЛЕМЫ ИЗ-ЗА РАЗНИЦЫ ИНДЕКСАЦИИ ПРОЦЕССОВ И ПОЛЕЙ
+      // Как минимум, при выводе в файл это надо учитывать!!!
+
+      std::cout << "rank = " << rank << " shift = " << shift << " coords[0] = " << coords[0] << " coords[1] = " << coords[1] << std::endl;
+      
+      // for (int i = 0; i < rank; ++i) shift += all_N[i];
       // coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
     }
     else if (axis == Axis::Oy) {
       int64_t local_Ny = field.get_Ny();
-      MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
-      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      // MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      // for (int i = 0; i < rank; ++i) shift += all_N[i];
+      
       coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
     }
     // С OZ пока вообще непонятно, так как пока что не предполагается движение по OZ
     else if (axis == Axis::Oz) {
       int64_t local_Nz = field.get_Nz();
-      MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
-      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      // MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      // for (int i = 0; i < rank; ++i) shift += all_N[i];
       coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
     }
 
@@ -143,11 +200,14 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
   Field::ComputingField& B_field = get_B();
   
   // Функция синхронизации всех границ для 2D и 3D
-  std::function<void(void)> boundary_synchronization{};
-  if (this->analytical_field.get_Nz() > 1)
-    boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization_3D, &analytical_field);
-  else
-    boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization, &analytical_field);
+  // std::function<void(MPI_Comm _cart_comm)> boundary_synchronization{};
+  // std::function<void(MPI_Comm)> boundary_synchronization{};
+  std::function<void(MPI_Comm)> boundary_synchronization;
+  if (this->analytical_field.get_Nz() > 1) {
+      boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization_3D, &this->analytical_field, std::placeholders::_1);
+  } else {
+      boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization, &this->analytical_field, std::placeholders::_1);
+  }
 
   auto loop_function = [&](std::tuple<Axis, int64_t, int64_t> axis_1, std::tuple<Axis, int64_t, int64_t> axis_2, std::tuple<Axis, int64_t, int64_t> axis_3) {
     int64_t* i = nullptr;
@@ -197,7 +257,7 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
             sin(2.0 * PI * (coordinate + delta_coordinate * coeff - ai_bi.first - sign * C * t) /
               (ai_bi.second - ai_bi.first));
         }
-    boundary_synchronization();
+    boundary_synchronization(cart_comm);
   };
 
   auto set_computational_data = [&]() {
@@ -264,16 +324,16 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
   set_computational_data();
 }
 
-void gtest::Test_obj::numerical_solution(const double t, const Shift _shift)
+void gtest::Test_obj::numerical_solution(const double t, const Shift _shift, MPI_Comm cart_comm)
 {
   Courant_condition_check(_shift);
-  (_shift == Shift::shifted) ? field.shifted_field_update(t) : field.field_update(t);
+  (_shift == Shift::shifted) ? field.shifted_field_update(t, cart_comm) : field.field_update(t, cart_comm);
 }
 
-void gtest::Test_obj::numerical_solution(const int64_t t, const Shift _shift)
+void gtest::Test_obj::numerical_solution(const int64_t t, const Shift _shift, MPI_Comm cart_comm)
 {
   Courant_condition_check(_shift);
-  (_shift == Shift::shifted) ? field.shifted_field_update(t) : field.field_update(t);
+  (_shift == Shift::shifted) ? field.shifted_field_update(t, cart_comm) : field.field_update(t, cart_comm);
 }
 
 double gtest::Test_obj::get_delta_space(void) const
@@ -385,120 +445,155 @@ void gtest::Test_obj::Courant_condition_check(const Shift _shift) const noexcept
 
 void gtest::Test_obj::set_default_field_or_analytical_default_solution(const Component E, const Component B, const Shift _shift, std::function<void(std::tuple<Axis, int64_t, int64_t>, std::tuple<Axis, int64_t, int64_t>, std::tuple<Axis, int64_t, int64_t>)> loop_function)
 {
-  Courant_condition_check(_shift);
-  double coeff = (_shift == Shift::shifted) ? 0.5 : 0.0;
+  // Courant_condition_check(_shift);
+  // double coeff = (_shift == Shift::shifted) ? 0.5 : 0.0;
 
-  Field::ComputingField& Ex = analytical_field.get_Ex();
-  Field::ComputingField& Ey = analytical_field.get_Ey();
-  Field::ComputingField& Ez = analytical_field.get_Ez();
+  // Field::ComputingField& Ex = analytical_field.get_Ex();
+  // Field::ComputingField& Ey = analytical_field.get_Ey();
+  // Field::ComputingField& Ez = analytical_field.get_Ez();
 
-  Field::ComputingField& Bx = analytical_field.get_Bx();
-  Field::ComputingField& By = analytical_field.get_By();
-  Field::ComputingField& Bz = analytical_field.get_Bz();
+  // Field::ComputingField& Bx = analytical_field.get_Bx();
+  // Field::ComputingField& By = analytical_field.get_By();
+  // Field::ComputingField& Bz = analytical_field.get_Bz();
 
 
-  auto get_E = [this, &E]() -> Field::ComputingField& {
-    if (E == Component::Ex) return analytical_field.get_Ex();
-    if (E == Component::Ey) return analytical_field.get_Ey();
-    if (E == Component::Ez) return analytical_field.get_Ez();
-    std::cout << "\nError: Analytical default solution. Wrong E - field!\n";
-    exit(-1);
-  };
-  auto get_B = [this, &B]() -> Field::ComputingField& {
-    if (B == Component::Bx) return analytical_field.get_Bx();
-    if (B == Component::By) return analytical_field.get_By();
-    if (B == Component::Bz) return analytical_field.get_Bz();
-    std::cout << "\nError: Analytical default solution. Wrong B - field!\n";
-    exit(-1);
-  };
+  // auto get_E = [this, &E]() -> Field::ComputingField& {
+  //   if (E == Component::Ex) return analytical_field.get_Ex();
+  //   if (E == Component::Ey) return analytical_field.get_Ey();
+  //   if (E == Component::Ez) return analytical_field.get_Ez();
+  //   std::cout << "\nError: Analytical default solution. Wrong E - field!\n";
+  //   exit(-1);
+  // };
+  // auto get_B = [this, &B]() -> Field::ComputingField& {
+  //   if (B == Component::Bx) return analytical_field.get_Bx();
+  //   if (B == Component::By) return analytical_field.get_By();
+  //   if (B == Component::Bz) return analytical_field.get_Bz();
+  //   std::cout << "\nError: Analytical default solution. Wrong B - field!\n";
+  //   exit(-1);
+  // };
 
-  std::pair<double, double> ai_bi{};
-  double coordinate = 0.0;
-  double delta_coordinate = 0.0;
-  double sign = 0.0;
+  // std::pair<double, double> ai_bi{};
+  // double coordinate = 0.0;
+  // double delta_coordinate = 0.0;
+  // double sign = 0.0;
 
   
-  auto helper_set_data = [&] \
-    (std::pair<double, double>&&_ai_bi, double delta, double _sign) {
-    // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
-    ai_bi = _ai_bi;
-    coordinate = ai_bi.first;
-    delta_coordinate = delta;
-    sign = _sign;
-  };
+  // auto helper_set_data = [&] \
+  //   (std::pair<double, double>&&_ai_bi, double delta, double _sign) {
+  //   // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
+  //   ai_bi = _ai_bi;
+  //   coordinate = ai_bi.first;
+  //   delta_coordinate = delta;
+  //   sign = _sign;
+  // };
 
-  Field::ComputingField& E_field = get_E();
-  Field::ComputingField& B_field = get_B();
+  // Field::ComputingField& E_field = get_E();
+  // Field::ComputingField& B_field = get_B();
   
-  // Функция синхронизации всех границ для 2D и 3D
-  std::function<void(void)> boundary_synchronization{};
-  if (this->analytical_field.get_Nz() > 1)
-    boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization_3D, &analytical_field);
-  else
-    boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization, &analytical_field);
+  // // Функция синхронизации всех границ для 2D и 3D
+  // std::function<void(void)> boundary_synchronization{};
+  // if (this->analytical_field.get_Nz() > 1)
+  //   boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization_3D, &analytical_field);
+  // else
+  //   boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization, &analytical_field);
 
-  // auto set_computational_data = [this, &helper_set_data, &loop_function, &E, &B]() {
-  auto set_computational_data = [&]() {
+  // // auto set_computational_data = [this, &helper_set_data, &loop_function, &E, &B]() {
+  // auto set_computational_data = [&]() {
 
-    int64_t _Nz = (field.get_Nz() > 1) ? field.get_Nz() : 0; // Учитываем случай 2D
-    // int64_t _Nz_counter = (_Nz > 1) ? 0 : _Nz - 1; // Это эквивалентно -1 для 2D
-    int64_t _Nz_counter = (_Nz > 1) ? 0 : -1; // Это эквивалентно -1 для 2D
+  //   int64_t _Nz = (field.get_Nz() > 1) ? field.get_Nz() : 0; // Учитываем случай 2D
+  //   // int64_t _Nz_counter = (_Nz > 1) ? 0 : _Nz - 1; // Это эквивалентно -1 для 2D
+  //   int64_t _Nz_counter = (_Nz > 1) ? 0 : -1; // Это эквивалентно -1 для 2D
 
-    // OX
-    if (E == Component::Ey && B == Component::Bz)
-    {
-      helper_set_data(field.get_ax_bx(), field.get_dx(), 1.0);
-      loop_function(std::make_tuple(Axis::Ox, 0, field.get_Nx()),
-        std::make_tuple(Axis::Oy, 0, field.get_Ny()),
-        std::make_tuple(Axis::Oz, _Nz_counter, _Nz));
-    }
-    else if (E == Component::Ez && B == Component::By)
-    {
-      helper_set_data(field.get_ax_bx(), field.get_dx(), -1.0);
-      loop_function(std::make_tuple(Axis::Ox, 0, field.get_Nx()),
-        std::make_tuple(Axis::Oy, 0, field.get_Ny()),
-        std::make_tuple(Axis::Oz, _Nz_counter, _Nz));
-    }
+  //   // OX
+  //   if (E == Component::Ey && B == Component::Bz)
+  //   {
+  //     helper_set_data(field.get_ax_bx(), field.get_dx(), 1.0);
+  //     loop_function(std::make_tuple(Axis::Ox, 0, field.get_Nx()),
+  //       std::make_tuple(Axis::Oy, 0, field.get_Ny()),
+  //       std::make_tuple(Axis::Oz, _Nz_counter, _Nz));
+  //   }
+  //   else if (E == Component::Ez && B == Component::By)
+  //   {
+  //     helper_set_data(field.get_ax_bx(), field.get_dx(), -1.0);
+  //     loop_function(std::make_tuple(Axis::Ox, 0, field.get_Nx()),
+  //       std::make_tuple(Axis::Oy, 0, field.get_Ny()),
+  //       std::make_tuple(Axis::Oz, _Nz_counter, _Nz));
+  //   }
 
-    // OY
-    else if (E == Component::Ez && B == Component::Bx)
-    {
-      helper_set_data(field.get_ay_by(), field.get_dy(), 1.0);
-      loop_function(std::make_tuple(Axis::Oy, 0, field.get_Ny()),
-        std::make_tuple(Axis::Ox, 0, field.get_Nx()),
-        std::make_tuple(Axis::Oz, _Nz_counter, _Nz));
-    }
-    else if (E == Component::Ex && B == Component::Bz)
-    {
-      helper_set_data(field.get_ay_by(), field.get_dy(), -1.0);
-      loop_function(std::make_tuple(Axis::Oy, 0, field.get_Ny()),
-        std::make_tuple(Axis::Ox, 0, field.get_Nx()),
-        std::make_tuple(Axis::Oz, _Nz_counter, _Nz));
-    }
+  //   // OY
+  //   else if (E == Component::Ez && B == Component::Bx)
+  //   {
+  //     helper_set_data(field.get_ay_by(), field.get_dy(), 1.0);
+  //     loop_function(std::make_tuple(Axis::Oy, 0, field.get_Ny()),
+  //       std::make_tuple(Axis::Ox, 0, field.get_Nx()),
+  //       std::make_tuple(Axis::Oz, _Nz_counter, _Nz));
+  //   }
+  //   else if (E == Component::Ex && B == Component::Bz)
+  //   {
+  //     helper_set_data(field.get_ay_by(), field.get_dy(), -1.0);
+  //     loop_function(std::make_tuple(Axis::Oy, 0, field.get_Ny()),
+  //       std::make_tuple(Axis::Ox, 0, field.get_Nx()),
+  //       std::make_tuple(Axis::Oz, _Nz_counter, _Nz));
+  //   }
 
-    // OZ
-    // Возможно нужно учесть get_dz() в случае 2D
-    else if (E == Component::Ex && B == Component::By)
-    {
-      helper_set_data(field.get_az_bz(), field.get_dz(), 1.0);
-      loop_function(std::make_tuple(Axis::Oz, _Nz_counter, _Nz),
-        std::make_tuple(Axis::Ox, 0, field.get_Nx()),
-        std::make_tuple(Axis::Oy, 0, field.get_Ny()));
-    }
-    else if (E == Component::Ey && B == Component::Bx)
-    {
-      helper_set_data(field.get_az_bz(), field.get_dz(), -1.0);
-      loop_function(std::make_tuple(Axis::Oz, _Nz_counter, _Nz),
-        std::make_tuple(Axis::Ox, 0, field.get_Nx()),
-        std::make_tuple(Axis::Oy, 0, field.get_Ny()));
-    }
-    else {
-      std::cout << "Error: Analytical solution. Invalid E/B components!\n";
-      exit(-1);
-    }
-  };
+  //   // OZ
+  //   // Возможно нужно учесть get_dz() в случае 2D
+  //   else if (E == Component::Ex && B == Component::By)
+  //   {
+  //     helper_set_data(field.get_az_bz(), field.get_dz(), 1.0);
+  //     loop_function(std::make_tuple(Axis::Oz, _Nz_counter, _Nz),
+  //       std::make_tuple(Axis::Ox, 0, field.get_Nx()),
+  //       std::make_tuple(Axis::Oy, 0, field.get_Ny()));
+  //   }
+  //   else if (E == Component::Ey && B == Component::Bx)
+  //   {
+  //     helper_set_data(field.get_az_bz(), field.get_dz(), -1.0);
+  //     loop_function(std::make_tuple(Axis::Oz, _Nz_counter, _Nz),
+  //       std::make_tuple(Axis::Ox, 0, field.get_Nx()),
+  //       std::make_tuple(Axis::Oy, 0, field.get_Ny()));
+  //   }
+  //   else {
+  //     std::cout << "Error: Analytical solution. Invalid E/B components!\n";
+  //     exit(-1);
+  //   }
+  // };
   
-  set_computational_data();
+  // set_computational_data();
+}
+
+void gtest::Test_obj::create_cartesian_topology(int world_size) {
+  // Определение размеров декартовой топологии (сколько процессов вдоль каждой из осей)
+  dims[0] = dims[1] = 0;
+  MPI_Dims_create(world_size, 2, dims); // 2 - количество измерений (для 2D сетки)
+
+  // Создание декартовой топологии
+  int periods[2] = {1, 1}; // С периодическими граничными условиями (для процессов)
+
+  MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
+
+  // Получение координаты текущего процесса в топологии
+  int rank;
+  MPI_Comm_rank(cart_comm, &rank);
+  MPI_Cart_coords(cart_comm, rank, 2, coords);
+}
+
+void gtest::Test_obj::set_subdomain_sizes(int64_t Nx, int64_t Ny) {
+    // Пока что здесь только 2D случай
+
+    // Определение размера блоков матрицы для каждого процесса
+    local_Nx = (Nx + 2 * dims[0]) / dims[0]; // +2 для граничных полей
+    local_Ny = (Ny + 2 * dims[1]) / dims[1]; // +2 для граничных полей
+
+    // Учет остатка, если количество размер сетки не кратен количеству процессов
+    if (coords[0] < (Nx + 2 * dims[0]) % dims[0]) local_Nx++;
+    if (coords[1] < (Ny + 2 * dims[1]) % dims[1]) local_Ny++;
+
+    // Уменьшение на 2, так как в конструкторе учитываются граничные поля
+    local_Nx -= 2;
+    local_Ny -= 2;
+    
+    // ВАЖНО! Пока что только 2D
+    local_Nz = 1;
 }
 
 void gtest::Test_obj::set_default_field(const Component E, const Component B, const Shift _shift)
@@ -549,27 +644,46 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
     delta_coordinate = delta;
 
     // Вектор значений соответствующих размеров (Nx или Ny или Nz) для каждого процесса
-    std::vector<int64_t> all_N(world_size);
+    // std::vector<int64_t> all_N(world_size);
+    std::vector<int64_t> all_local_Nx(world_size);
+    std::vector<int64_t> all_local_Ny(world_size);
+    int64_t local_Nx = field.get_Nx();
+    int64_t local_Ny = field.get_Ny();
+
+    
+
+    MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_local_Nx.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+    MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_local_Ny.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+   
     int64_t shift = 0;
 
     Axis axis = FDTD::FDTD::get_axis(E, B);
     // Опасное место, так как шаг может быть недостаточно сдвинут.
     if (axis == Axis::Ox) {
       int64_t local_Nx = field.get_Nx();
-      MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
-      for (int i = 0; i < rank; ++i) shift += all_N[i];
+
+      for (int coordX = get_coords()[0]; coordX > 0; --coordX) {
+        int neighbor_coords[2] = {coordX - 1, get_coords()[1]}; // Координаты соседнего левого процесса
+        int other_rank = 0;
+        MPI_Cart_rank(cart_comm, neighbor_coords, &other_rank); // Получаем ранг соседнего процесса
+        shift += all_local_Nx[other_rank]; 
+      }        
+      coordinate = ai_bi.first + delta_coordinate * shift;
+
+      // MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      // for (int i = 0; i < rank; ++i) shift += all_N[i];
       // coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
     }
     else if (axis == Axis::Oy) {
       int64_t local_Ny = field.get_Ny();
-      MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
-      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      // MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      // for (int i = 0; i < rank; ++i) shift += all_N[i];
       coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
     }
     else if (axis == Axis::Oz) {
       int64_t local_Nz = field.get_Nz();
-      MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
-      for (int i = 0; i < rank; ++i) shift += all_N[i];
+      // MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+      // for (int i = 0; i < rank; ++i) shift += all_N[i];
       coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
     }
 
@@ -580,11 +694,11 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
   Field::ComputingField& B_field = get_B();
 
   // Функция синхронизации всех границ для 2D и 3D
-  std::function<void(void)> boundary_synchronization{};
+  std::function<void(MPI_Comm)> boundary_synchronization{};
   if (this->field.get_Nz() > 1)
-    boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization_3D, &field);
+    boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization_3D, &field, std::placeholders::_1);
   else
-    boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization, &field);
+    boundary_synchronization = std::bind(&FDTD::FDTD::boundary_synchronization, &field, std::placeholders::_1);
 
   auto loop_function = [&](std::tuple<Axis, int64_t, int64_t> axis_1, std::tuple<Axis, int64_t, int64_t> axis_2, std::tuple<Axis, int64_t, int64_t> axis_3) {
     int64_t* i = nullptr, * j = nullptr, * k = nullptr;
@@ -629,7 +743,7 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
               (ai_bi.second - ai_bi.first));
 
         }
-    boundary_synchronization();
+    boundary_synchronization(cart_comm);
     // if (rank == 0) {
     //     for (int i = 0; i < Bz.get_field().size(); ++i)
     //         Bz.get_field()[i] = i;
