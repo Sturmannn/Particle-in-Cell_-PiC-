@@ -87,51 +87,10 @@ private:
   void set_subdomain_sizes(int64_t Nx, int64_t Ny);
 };
 
-// Пример декартовой топологии для 2D сетки (но без периодических граничных условий)
-// [ 6 ]---[ 7 ]---[ 8 ]
-//   |       |       |
-// [ 3 ]---[ 4 ]---[ 5 ]
-//   |       |       |
-// [ 0 ]---[ 1 ]---[ 2 ]
-
-// Декартова топология для MPI
-// void create_cartesian_topology(int world_size, int dims[2], int coords[2], MPI_Comm &cart_comm) {
-//     // Определение размеров декартовой топологии (сколько процессов вдоль каждой из осей)
-//     dims[0] = dims[1] = 0;
-//     MPI_Dims_create(world_size, 2, dims); // 2 - количество измерений (для 2D сетки)
-
-//     // Создание декартовой топологии
-//     int periods[2] = {1, 1}; // Для периодических граничных условий
-//     // Возможно с переодичностью будет попроще, но не факт.
-
-//     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
-
-//     // Получение координаты текущего процесса в топологии
-//     int rank;
-//     MPI_Comm_rank(cart_comm, &rank);
-//     MPI_Cart_coords(cart_comm, rank, 2, coords);
-// }
-
-// void set_subdomain_sizes(int64_t Nx, int64_t Ny, int dims[2], int coords[2], int64_t &local_Nx, int64_t &local_Ny) {
-//     // Пока что здесь только 2D случай
-
-//     // Определение размера блоков матрицы для каждого процесса
-//     local_Nx = (Nx + 2 * dims[0]) / dims[0]; // +2 для граничных полей
-//     local_Ny = (Ny + 2 * dims[1]) / dims[1]; // +2 для граничных полей
-
-//     // Учет остатка, если количество размер сетки не кратен количеству процессов
-//     if (coords[0] < (Nx + 2 * dims[0]) % dims[0]) local_Nx++;
-//     if (coords[1] < (Ny + 2 * dims[1]) % dims[1]) local_Ny++;
-
-//     // Уменьшение на 2, так как в конструкторе учитываются граничные поля
-//     local_Nx -= 2;
-//     local_Ny -= 2;
-// }
-
 TEST(Test_version_comparison, shifted_OZ) {
-  // Потенциальны проблемы при запуске:
+  // Потенциальные проблемы при запуске:
   // 1. Ось по OZ, а сетка 2D
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {10, 10, 1};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {32, 32, 1};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   std::tuple<double, double, double> dx_dy_dz = 
@@ -153,10 +112,6 @@ TEST(Test_version_comparison, shifted_OZ) {
     
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    // int dims[2], coords[2];
-    // MPI_Comm cart_comm;
-    // create_cartesian_topology(world_size, dims, coords, cart_comm);
 
   Component E = Component::Ey;
   Component B = Component::Bz;
