@@ -16,7 +16,7 @@ enum class Shift { shifted, unshifted };
 class Test_obj {
 public:
   Test_obj() = delete;
-  Test_obj(const Component _E, const Component _B, int64_t Nx, int64_t Ny); // Вариант пока что для 2D
+  Test_obj(const Component _E, const Component _B, int64_t Nx, int64_t Ny, int64_t Nz, int MPI_dimension); // Вариант пока что для 2D
   Test_obj(const Component _E, const Component _B, FDTD::FDTD &_field);
   Test_obj(const Component _E, const Component _B, FDTD::FDTD &&_field);
   Test_obj(const Test_obj &other_test_field);
@@ -54,8 +54,9 @@ public:
 
   MPI_Comm &get_cart_comm(void) { return cart_comm; }
   
-  int (&get_coords(void))[2] { return coords; }
-  int (&get_dims(void))[2] { return dims; }
+  std::vector<int>& get_coords() { return coords; }
+  std::vector<int>& get_dims() { return dims; }
+  // int (&get_dims(void))[3] { return dims; }
 
   int64_t get_local_Nx(void) const noexcept { return local_Nx; }
   int64_t get_local_Ny(void) const noexcept { return local_Ny; }
@@ -71,7 +72,7 @@ private:
   FDTD::FDTD analytical_field;
   Component E, B; // Компоненты поля
   MPI_Comm cart_comm; // Декартова топология
-  int dims[2], coords[2]; // Размеры топологии и координаты процесса
+  std::vector<int> dims, coords; // Размеры топологии и координаты процесса (или 2 или 3 элемента)
   int64_t local_Nx, local_Ny, local_Nz; // Размеры поддомена
 
   void Courant_condition_check(const Shift _shift) const noexcept;
@@ -81,16 +82,17 @@ private:
                                                         std::function<void(std::tuple<Axis, int64_t, int64_t>,
                                                           std::tuple<Axis, int64_t, int64_t>,
                                                           std::tuple<Axis, int64_t, int64_t>)> loop_function);
-  void create_cartesian_topology(int world_size);
+  void create_cartesian_topology(int world_size, int MPI_dimension);
   
   // Пока что здесь только 2D случай
-  void set_subdomain_sizes(int64_t Nx, int64_t Ny);
+  void set_subdomain_sizes(int64_t Nx, int64_t Ny, int64_t Nz);
 };
 
 TEST(Test_version_comparison, shifted_OZ) {
-  // Потенциальные проблемы при запуске:
-  // 1. Ось по OZ, а сетка 2D
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {32, 32, 1};
+
+  // При изменении размеров сетки, не забыть изменить и размеры поддомена
+  int MPI_dimension = 3;
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 16};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   std::tuple<double, double, double> dx_dy_dz = 
@@ -120,98 +122,14 @@ TEST(Test_version_comparison, shifted_OZ) {
   if (rank == 0) std::cout << "Axis: " << FDTD::FDTD::axisToString(E, B) << std::endl;
 
 
-
 // =========================================================
 
-// Пока что MPI для 2D и разбиение по процессам идёт по оси OY
-// В дальнейшем скорее всего должен быть выбор, по какой из осей разбивать
-// НЕ ЗАБЫТЬ ТО ЖЕ СДЕЛАТЬ ДЛЯ ВТОРОГО ТЕСТОВОГО ПРИМЕРА
 
-  // int64_t local_Nx = std::get<0>(Nx_Ny_Nz);
-  // int64_t local_Ny = (std::get<1>(Nx_Ny_Nz) + 2 * world_size) / world_size;
-
-  // // Это рассчитывается с учётом дополнительных граничных полей.
-  // // В реализации же этого кода, они учитываются в конструктуре, поэтому этот результат нужно будет уменьшить на 2
-  // if (rank < (std::get<1>(Nx_Ny_Nz) + 2 * world_size) % world_size) local_Ny += 1;
-  
-  // // Уменьшаем на 2, так как в конструкторе учитываются граничные поля
-  // // if (world_size > 1) local_Ny -= 2;
-  // local_Ny -= 2;
-
-
-  // int64_t local_Nx, local_Ny;
-  // set_subdomain_sizes(std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), dims, coords, local_Nx, local_Ny);
-
-  // std::cout << "Rank = " << rank << " Local_Nx = " << local_Nx << " Local_Ny = " << local_Ny << std::endl;
-
-  // Пока что Nz = 1
-  // std::tuple<int64_t, int64_t, int64_t> local_Nx_Ny_Nz = {local_Nx, local_Ny, 1};
-
-
-// =========================================================
-
-  Test_obj test(E, B, std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz)); // Пока что 2D
+  Test_obj test(E, B, std::get<0>(Nx_Ny_Nz), std::get<1>(Nx_Ny_Nz), std::get<2>(Nx_Ny_Nz), MPI_dimension);
   // Внимательно проверять, что в field нужно передавать именно local размеры
   FDTD::FDTD field(test.get_local_Nx_Ny_Nz(), ax_ay_az, bx_by_bz, dx_dy_dz, dt); 
   test.initialize_field(field);
 
-
-  // FDTD::FDTD field(local_Nx_Ny_Nz, ax_ay_az, bx_by_bz, dx_dy_dz, dt);
-  // Test_obj test(E, B, std::move(field));
-
-  // std::vector<double>& vector = test.get_field().get_Ex().get_field();
-  // if (rank == 0) {
-  //   for (int64_t i = 0; i < vector.size(); ++i) {
-  //     vector[i] = i;
-  //     std::cout << vector[i] << " ";
-  //   }
-  //   std::cout << '\n' << std::endl;
-  // }
-  //
-  // MPI_Barrier(MPI_COMM_WORLD);
-  // if (rank == 1) {
-  //   for (int64_t i = 0; i < vector.size(); ++i) {
-  //     vector[i] = i + 48;
-  //     std::cout << vector[i] << " ";
-  //   }
-  //   std::cout << '\n' << std::endl;
-  // }
-  // MPI_Barrier(MPI_COMM_WORLD);
-  // if (rank == 2) {
-  //   for (int64_t i = 0; i < vector.size(); ++i) {
-  //     vector[i] = i + 84;
-  //     std::cout << vector[i] << " ";
-  //   }
-  //   std::cout << '\n' << std::endl;
-  // }
-  // MPI_Barrier(MPI_COMM_WORLD);
-  //
-  //
-  // test.get_field().boundary_synchronization();
-  // if (rank == 0) {
-  //   for (int64_t i = 0; i < vector.size(); ++i) {
-  //     std::cout << test.get_field().get_Ex().get_field()[i] << " ";
-  //   }
-  //   std::cout << '\n' << std::endl;
-  // }
-  //
-  // MPI_Barrier(MPI_COMM_WORLD);
-  // if (rank == 1) {
-  //   for (int64_t i = 0; i < vector.size(); ++i) {
-  //     std::cout << test.get_field().get_Ex().get_field()[i] << " ";
-  //   }
-  //   std::cout << '\n' << std::endl;
-  // }
-  // MPI_Barrier(MPI_COMM_WORLD);
-  // if (rank == 2) {
-  //   for (int64_t i = 0; i < vector.size(); ++i) {
-  //     std::cout << test.get_field().get_Ex().get_field()[i] << " ";
-  //   }
-  //   std::cout << '\n' << std::endl;
-  // }
-  // MPI_Barrier(MPI_COMM_WORLD);
-  //
-  // exit(-1);
 
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);

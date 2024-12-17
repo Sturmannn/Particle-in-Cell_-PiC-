@@ -1,6 +1,6 @@
 #include "tests.hpp"
 
-gtest::Test_obj::Test_obj(const Component _E, const Component _B, int64_t Nx, int64_t Ny) : field{FDTD::FDTD::create_trash()}, analytical_field{FDTD::FDTD::create_trash()} {
+gtest::Test_obj::Test_obj(const Component _E, const Component _B, int64_t Nx, int64_t Ny, int64_t Nz, int MPI_dimension) : field{FDTD::FDTD::create_trash()}, analytical_field{FDTD::FDTD::create_trash()} {
   // Поля изначально заполняются мусором (в списке инициализации)
 
   int world_size = 0;
@@ -11,9 +11,9 @@ gtest::Test_obj::Test_obj(const Component _E, const Component _B, int64_t Nx, in
   MPI_Comm_size(MPI_COMM_WORLD, &world_size);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  create_cartesian_topology(world_size);
+  create_cartesian_topology(world_size, MPI_dimension);
 
-  set_subdomain_sizes(Nx, Ny);
+  set_subdomain_sizes(Nx, Ny, Nz);
 }
 
 gtest::Test_obj::Test_obj(const Component _E, const Component _B,
@@ -129,13 +129,18 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
     ai_bi = _ai_bi;
     
+    int ndims = 0;
+    MPI_Cartdim_get(cart_comm, &ndims);
+
     for (int i = 0; i < world_size; ++i) {
       if (i == rank) {
+        if (ndims == 2)
           std::cout << "rank = " << rank << " coords[0] = " << coords[0] << " coords[1] = " << coords[1] << std::endl;
+        else if (ndims == 3)
+          std::cout << "rank = " << rank << " coords[0] = " << coords[0] << " coords[1] = " << coords[1] << " coords[2] = " << coords[2] << std::endl;
       }
       MPI_Barrier(MPI_COMM_WORLD);
     }
-    // std::cout << "rank = " << rank << " coords[0] = " << coords[0] << " coords[1] = " << coords[1] << std::endl;
     // std::cout << "rank = " << rank << " Nx = " << field.get_Nx() << " Ny = " << field.get_Ny() << " Nz = " << field.get_Nz() << " delta = " << delta << std::endl;
 
 
@@ -145,15 +150,24 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     // Вектор значений соответствующих размеров (Nx или Ny или Nz) для каждого процесса
     std::vector<int64_t> all_local_Nx(world_size);
     std::vector<int64_t> all_local_Ny(world_size);
+    std::vector<int64_t> all_local_Nz(world_size);
     int64_t local_Nx = field.get_Nx();
     int64_t local_Ny = field.get_Ny();
+    int64_t local_Nz = field.get_Nz();
 
     
 
     MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_local_Nx.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
     MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_local_Ny.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
+    if (field.get_Nz() > 1)
+      MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_local_Nz.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
     int64_t shift = 0;
 
+
+
+    // Координаты соседних процессов для дальнейшего учёта сдвигов (shift)
+    std::vector<int> neighbor_coords(ndims, 0);
+    int other_rank = 0;
 
     // ЗДЕСЬ РАЗБИЕНИЕ ТОЛЬКО ПО СТРОКАМ (OY) В ДВУМЕРНОМ СЛУЧАЕ И ТОЛЬКО ПРИ ДВИЖЕНИИ ПО OY. ДАЛЬШЕ НЕОБХОДИМО БУДЕТ МЕНЯТЬ, ЕСЛИ ПО РАЗНЫМ ОСЯМ РАЗБИВАТЬ
     Axis axis = FDTD::FDTD::get_axis(E, B);
@@ -173,18 +187,33 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
 
       for (int coordY = get_coords()[1]; coordY > 0; --coordY) {
         // int neighbor_coords[2] = {coordX - 1, get_coords()[1]}; // Координаты соседнего левого процесса
-        int neighbor_coords[2] = {get_coords()[0], coordY - 1}; // Координаты соседнего левого процесса
-        int other_rank = 0;
-        MPI_Cart_rank(cart_comm, neighbor_coords, &other_rank); // Получаем ранг соседнего процесса
+        // int neighbor_coords[2] = {get_coords()[0], coordY - 1}; // Координаты соседнего левого процесса
+        // int other_rank = 0;
 
-        std::cout << "rank = " << rank << " other_rank = " << other_rank << " neighbor_coords[0] = " << neighbor_coords[0] << " neighbor_coords[1] = " << neighbor_coords[1] << std::endl;
+        if (ndims == 2) {
+          neighbor_coords[0] = get_coords()[0];
+          neighbor_coords[1] = coordY - 1;
+        }
+        else if (ndims == 3) {
+          neighbor_coords[0] = get_coords()[0];
+          neighbor_coords[1] = coordY - 1;
+          neighbor_coords[2] = get_coords()[2];
+        }
+        MPI_Cart_rank(cart_comm, neighbor_coords.data(), &other_rank); // Получаем ранг соседнего процесса
+
+
+        if (ndims == 2) {
+          std::cout << "rank = " << rank << " other_rank = " << other_rank << " neighbor_coords[0] = " << neighbor_coords[0] << " neighbor_coords[1] = " << neighbor_coords[1] << std::endl;
+        }
+        else if (ndims == 3) {
+          std::cout << "rank = " << rank << " other_rank = " << other_rank << " neighbor_coords[0] = " << neighbor_coords[0] << " neighbor_coords[1] = " << neighbor_coords[1] << " neighbor_coords[2] = " << neighbor_coords[2] << std::endl;
+        }
         shift += all_local_Nx[other_rank]; 
       }        
       coordinate = ai_bi.first + delta_coordinate * shift;
       // ПОКА ЧТО ТОЛЬКО ПРИ ДВИЖЕНИИ ПО OX
       // ВОЗМОЖНО ЕСТЬ ПРОБЛЕМЫ ИЗ-ЗА РАЗНИЦЫ ИНДЕКСАЦИИ ПРОЦЕССОВ И ПОЛЕЙ
       // Как минимум, при выводе в файл это надо учитывать!!!
-      
       // std::cout << "rank = " << rank << " shift = " << shift << " coords[0] = " << coords[0] << " coords[1] = " << coords[1] << std::endl;
     }
     else if (axis == Axis::Oy) {
@@ -571,45 +600,63 @@ void gtest::Test_obj::set_default_field_or_analytical_default_solution(const Com
   // set_computational_data();
 }
 
-void gtest::Test_obj::create_cartesian_topology(int world_size) {
+void gtest::Test_obj::create_cartesian_topology(int world_size, int MPI_dimension) {
 
   // Пример декартовой топологии для 2D сетки (но без периодических граничных условий)
-  // [ 6 ]---[ 7 ]---[ 8 ]      (2,0)---(2,1)---(2,2)---(2,3)
-  //   |       |       |          |       |       |       |
-  // [ 3 ]---[ 4 ]---[ 5 ]      (1,0)---(1,1)---(1,2)---(1,3)
-  //   |       |       |          |       |       |       |
-  // [ 0 ]---[ 1 ]---[ 2 ]      (0,0)---(0,1)---(0,2)---(0,3)
+  //                           Низ  
+  // [ 6 ]---[ 7 ]---[ 8 ]     ^ (2,0)---(2,1)---(2,2)---(2,3)
+  //   |       |       |       |   |       |       |       |
+  // [ 3 ]---[ 4 ]---[ 5 ]     | (1,0)---(1,1)---(1,2)---(1,3)
+  //   |       |       |       |   |       |       |       |
+  // [ 0 ]---[ 1 ]---[ 2 ]     | (0,0)---(0,1)---(0,2)---(0,3)
+  //                           --------------------------> Верх
 
   // Определение размеров декартовой топологии (сколько процессов вдоль каждой из осей)
-  dims[0] = dims[1] = 0;
-  MPI_Dims_create(world_size, 2, dims); // 2 - количество измерений (для 2D сетки)
+  dims.resize(MPI_dimension); // Для 2D - 2 элемента, для 3D - 3 элемента
+  coords.resize(MPI_dimension); // Для 2D - 2 элемента, для 3D - 3 элемента
+  // dims[0] = dims[1] = dims[2] = 0;
+  MPI_Dims_create(world_size, MPI_dimension, dims.data()); // MPI_dimension - количество измерений в топологии (2D, 3D)
 
-  // Создание декартовой топологии
-  int periods[2] = {1, 1}; // С периодическими граничными условиями (для процессов)
 
   // Чтобы нумерация шла слева направо, снизу вверх, нужно поменять местами dims[0] и dims[1]
   // Возможно, что намудрил и сам себя запутал с этой индексацией, но данный swap соответствует индексации, указанной выше на примере
-  std::swap(dims[0], dims[1]);
+  // Для 3д случая, нужно будет посмотреть, как будут индексироваться процессы. Данный вариант только для 2д
+  // std::swap(dims[0], dims[1]);
   
-  MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
+  // MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims, periods, 0, &cart_comm);
+  // Создание декартовой топологии
+  if (MPI_dimension == 2) {
+    int periods[2] = {1, 1}; // С периодическими граничными условиями (для процессов)
+    MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims.data(), periods, 0, &cart_comm);
+  }
+  else if (MPI_dimension == 3) {
+    int periods[3] = {1, 1, 1}; // С периодическими граничными условиями (для процессов)
+    MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims.data(), periods, 0, &cart_comm);
+  }
+  // Здесь по-хорошему ещё следует добавить и разбиение по одной оси, также связав логику с топологией, чтобы был универсальный код
 
   // Получение координаты текущего процесса в топологии
   int rank;
   MPI_Comm_rank(cart_comm, &rank);
-  MPI_Cart_coords(cart_comm, rank, 2, coords);
+  MPI_Cart_coords(cart_comm, rank, MPI_dimension, coords.data());
 
   // Вывод размеров топологии ----------------------------
     if (rank == 0) {
+      std::cout << "MPI_dimension (3D or 2D domain): " << MPI_dimension << 'D' << std::endl;
       std::cout << "Count of processes: " << world_size << std::endl;
-      std::cout << "Ox processes: " << dims[0] << " Oy processes: " << dims[1] << std::endl << std::endl;
+      if (MPI_dimension == 2) {
+        std::cout << "Ox processes: " << dims[0] << " Oy processes: " << dims[1] << std::endl << std::endl;
+      }
+      else if (MPI_dimension == 3) {
+        std::cout << "Ox processes: " << dims[0] << " Oy processes: " << dims[1] << " Oz processes: " << dims[2] << std::endl << std::endl;
+      }
     }
   // ----------------------------
 }
 
-void gtest::Test_obj::set_subdomain_sizes(int64_t Nx, int64_t Ny) {
-    // Пока что здесь только 2D случай
+void gtest::Test_obj::set_subdomain_sizes(int64_t Nx, int64_t Ny, int64_t Nz) {
 
-    // Определение размера блоков матрицы для каждого процесса
+    // --- Определение размера блоков матрицы для каждого процесса ---
     local_Nx = (Nx + 2 * dims[1]) / dims[1]; // +2 для граничных полей
     local_Ny = (Ny + 2 * dims[0]) / dims[0]; // +2 для граничных полей
 
@@ -617,30 +664,27 @@ void gtest::Test_obj::set_subdomain_sizes(int64_t Nx, int64_t Ny) {
     if (coords[1] < (Nx + 2 * dims[1]) % dims[1]) local_Nx++;
     if (coords[0] < (Ny + 2 * dims[0]) % dims[0]) local_Ny++;
 
+    // ----------------------------
+    int ndims = 0;
+    MPI_Cartdim_get(cart_comm, &ndims);
+
+    if (ndims == 2) {
+      local_Nz = 1;
+    } 
+    else if (ndims == 3) {
+      local_Nz = (Nz + 2 * dims[2]) / dims[2]; // +2 для граничных полей
+      if (coords[2] < (Nz + 2 * dims[2]) % dims[2]) local_Nz++;
+      local_Nz -= 2; // Уменьшение на 2, так как в конструкторе учитываются граничные поля
+    }
+    else {
+      std::cout << "Error: Set subdomain sizes. Wrong dimension!\n";
+      exit(-1);
+    }
+    // ----------------------------
+
     // Уменьшение на 2, так как в конструкторе учитываются граничные поля
     local_Nx -= 2;
     local_Ny -= 2;
-    
-    // ВАЖНО! Пока что только 2D
-    local_Nz = 1;
-
-
-    // // Пока что здесь только 2D случай
-
-    // // Определение размера блоков матрицы для каждого процесса
-    // local_Nx = (Nx + 2 * dims[0]) / dims[0]; // +2 для граничных полей
-    // local_Ny = (Ny + 2 * dims[1]) / dims[1]; // +2 для граничных полей
-
-    // // Учет остатка, если количество размер сетки не кратен количеству процессов
-    // if (coords[0] < (Nx + 2 * dims[0]) % dims[0]) local_Nx++;
-    // if (coords[1] < (Ny + 2 * dims[1]) % dims[1]) local_Ny++;
-
-    // // Уменьшение на 2, так как в конструкторе учитываются граничные поля
-    // local_Nx -= 2;
-    // local_Ny -= 2;
-    
-    // // ВАЖНО! Пока что только 2D
-    // local_Nz = 1;
 }
 
 void gtest::Test_obj::set_default_field(const Component E, const Component B, const Shift _shift)
@@ -686,6 +730,9 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
     (std::pair<double, double>&&_ai_bi, double delta, double _sign) {
     // (std::pair<double, double>&_ai_bi, double delta, double _sign) {
     ai_bi = _ai_bi;
+
+    int ndims = 0;
+    MPI_Cartdim_get(cart_comm, &ndims);
     
     // coordinate = ai_bi.first;
     delta_coordinate = delta;
@@ -694,26 +741,47 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
     // std::vector<int64_t> all_N(world_size);
     std::vector<int64_t> all_local_Nx(world_size);
     std::vector<int64_t> all_local_Ny(world_size);
+    std::vector<int64_t> all_local_Nz(world_size);
     int64_t local_Nx = field.get_Nx();
     int64_t local_Ny = field.get_Ny();
+    int64_t local_Nz = field.get_Nz();
 
     
 
     MPI_Allgather(&local_Nx, 1, MPI_INT64_T, all_local_Nx.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
     MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_local_Ny.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
-   
+    if (field.get_Nz() > 1)
+      MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_local_Nz.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);   
     int64_t shift = 0;
+
+
+
+    // Координаты соседних процессов для дальнейшего учёта сдвигов (shift)
+    std::vector<int> neighbor_coords(ndims, 0);
+    int other_rank = 0;
 
     Axis axis = FDTD::FDTD::get_axis(E, B);
     // Опасное место, так как шаг может быть недостаточно сдвинут.
+    // MPI здесь пока что только для движения волны по OX
     if (axis == Axis::Ox) {
       int64_t local_Nx = field.get_Nx();
       // for (int coordX = get_coords()[0]; coordX > 0; --coordX) {
       for (int coordY = get_coords()[1]; coordY > 0; --coordY) {
         // int neighbor_coords[2] = {coordX - 1, get_coords()[1]}; // Координаты соседнего левого процесса
-        int neighbor_coords[2] = {get_coords()[0], coordY - 1}; // Координаты соседнего левого процесса
-        int other_rank = 0;
-        MPI_Cart_rank(cart_comm, neighbor_coords, &other_rank); // Получаем ранг соседнего процесса
+        // int neighbor_coords[2] = {get_coords()[0], coordY - 1}; // Координаты соседнего левого процесса
+        // int other_rank = 0;
+
+        if (ndims == 2) {
+          neighbor_coords[0] = get_coords()[0];
+          neighbor_coords[1] = coordY - 1;
+        }
+        else if (ndims == 3) {
+          neighbor_coords[0] = get_coords()[0];
+          neighbor_coords[1] = coordY - 1;
+          neighbor_coords[2] = get_coords()[2];
+        }
+
+        MPI_Cart_rank(cart_comm, neighbor_coords.data(), &other_rank); // Получаем ранг соседнего процесса
         shift += all_local_Nx[other_rank]; 
       }        
       coordinate = ai_bi.first + delta_coordinate * shift;
