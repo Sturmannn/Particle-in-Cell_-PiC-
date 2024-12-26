@@ -100,14 +100,15 @@ TEST(Test_version_comparison, shifted_OZ) {
          (std::get<1>(bx_by_bz) - std::get<1>(ax_ay_az)) / static_cast<double>(std::get<1>(Nx_Ny_Nz)),
          (std::get<2>(bx_by_bz) - std::get<2>(ax_ay_az)) / static_cast<double>(std::get<2>(Nx_Ny_Nz))};
   
-  if (std::get<2>(Nx_Ny_Nz) > 1) {
-    std::get<2>(dx_dy_dz) = 0.0;
-  }
+  // if (std::get<2>(Nx_Ny_Nz) > 1) {
+  //   std::get<2>(dx_dy_dz) = 0.0;
+  // }
   // double dt = 2e-15;
 
   double dx = std::get<0>(dx_dy_dz);
   double dt = 0.25 * dx / C;
-  int64_t t = 250; // Задание количества итераций
+  // int64_t t = 250; // Задание количества итераций
+  int64_t t = 10; // Задание количества итераций
 
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -138,7 +139,16 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   Field::ComputingField::clear_files(path_to_calculated_data_directory);
   Field::ComputingField::clear_files(path_to_analytical_data_directory);
-
+  
+  // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  //   for (int64_t a = 0; a < field.get_Nx(); ++a)
+  //     for (int64_t b = 0; b < field.get_Ny(); ++b)
+  //       for (int64_t c = 0; c < field.get_Nz(); ++c)
+  //       {
+  //         if (  test.get_field().get_Ey()(a, b, c) != 0.0) {
+  //           std::cout << "Process " << rank << " Ey: " << test.get_field().get_Ey()(a, b, c) << std::endl;
+  //         }
+  //       }
 
   // Поскольку MPI разбиение на данный момент только по OY, то в python скрипте для графиков происходит сбор всех данных \
   с соответствующих процессов. Поэтому, при запуске на OX, данные дублируются в графиках

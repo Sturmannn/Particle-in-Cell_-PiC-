@@ -202,12 +202,12 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
         MPI_Cart_rank(cart_comm, neighbor_coords.data(), &other_rank); // Получаем ранг соседнего процесса
 
 
-        if (ndims == 2) {
-          std::cout << "rank = " << rank << " other_rank = " << other_rank << " neighbor_coords[0] = " << neighbor_coords[0] << " neighbor_coords[1] = " << neighbor_coords[1] << std::endl;
-        }
-        else if (ndims == 3) {
-          std::cout << "rank = " << rank << " other_rank = " << other_rank << " neighbor_coords[0] = " << neighbor_coords[0] << " neighbor_coords[1] = " << neighbor_coords[1] << " neighbor_coords[2] = " << neighbor_coords[2] << std::endl;
-        }
+        // if (ndims == 2) {
+        //   std::cout << "rank = " << rank << " other_rank = " << other_rank << " neighbor_coords[0] = " << neighbor_coords[0] << " neighbor_coords[1] = " << neighbor_coords[1] << std::endl;
+        // }
+        // else if (ndims == 3) {
+        //   std::cout << "rank = " << rank << " other_rank = " << other_rank << " neighbor_coords[0] = " << neighbor_coords[0] << " neighbor_coords[1] = " << neighbor_coords[1] << " neighbor_coords[2] = " << neighbor_coords[2] << std::endl;
+        // }
         shift += all_local_Nx[other_rank]; 
       }        
       coordinate = ai_bi.first + delta_coordinate * shift;
@@ -373,6 +373,17 @@ void gtest::Test_obj::numerical_solution(const int64_t t, const Shift _shift, MP
 {
   Courant_condition_check(_shift);
   (_shift == Shift::shifted) ? field.shifted_field_update(t, cart_comm) : field.field_update(t, cart_comm);
+
+  // int rank = 0;
+  // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  //   for (int64_t a = 0; a < field.get_Nx(); ++a)
+  //     for (int64_t b = 0; b < field.get_Ny(); ++b)
+  //       for (int64_t c = 0; c < field.get_Nz(); ++c)
+  //       {
+  //         if (field.get_Ey()(a, b, c) != 0.0) {
+  //           std::cout << "Process " << rank << " Ey: " << field.get_Ey()(a, b, c) << std::endl;
+  //         }
+  //       }
 }
 
 double gtest::Test_obj::get_delta_space(void) const
@@ -610,6 +621,7 @@ void gtest::Test_obj::create_cartesian_topology(int world_size, int MPI_dimensio
   //   |       |       |       |   |       |       |       |
   // [ 0 ]---[ 1 ]---[ 2 ]     | (0,0)---(0,1)---(0,2)---(0,3)
   //                           --------------------------> Верх
+  // Ещё раз проверить, как индексируются процессы в декартовой топологии (схема скорее всего устаревшая)
 
   // Определение размеров декартовой топологии (сколько процессов вдоль каждой из осей)
   dims.resize(MPI_dimension); // Для 2D - 2 элемента, для 3D - 3 элемента
@@ -625,6 +637,11 @@ void gtest::Test_obj::create_cartesian_topology(int world_size, int MPI_dimensio
   
   // MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims, periods, 0, &cart_comm);
   // Создание декартовой топологии
+
+  // DEBUG ----------------------------
+  dims[0] = 2; dims[1] = 3; dims[2] = 4;
+  // ----------------------------
+
   if (MPI_dimension == 2) {
     int periods[2] = {1, 1}; // С периодическими граничными условиями (для процессов)
     MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims.data(), periods, 0, &cart_comm);
@@ -657,12 +674,12 @@ void gtest::Test_obj::create_cartesian_topology(int world_size, int MPI_dimensio
 void gtest::Test_obj::set_subdomain_sizes(int64_t Nx, int64_t Ny, int64_t Nz) {
 
     // --- Определение размера блоков матрицы для каждого процесса ---
-    local_Nx = (Nx + 2 * dims[1]) / dims[1]; // +2 для граничных полей
-    local_Ny = (Ny + 2 * dims[0]) / dims[0]; // +2 для граничных полей
+    local_Nx = (Nx + 2 * dims[0]) / dims[0]; // +2 для граничных полей
+    local_Ny = (Ny + 2 * dims[1]) / dims[1]; // +2 для граничных полей
 
     // Учет остатка, если количество размер сетки не кратен количеству процессов
-    if (coords[1] < (Nx + 2 * dims[1]) % dims[1]) local_Nx++;
-    if (coords[0] < (Ny + 2 * dims[0]) % dims[0]) local_Ny++;
+    if (coords[0] < (Nx + 2 * dims[0]) % dims[0]) local_Nx++;
+    if (coords[1] < (Ny + 2 * dims[1]) % dims[1]) local_Ny++;
 
     // ----------------------------
     int ndims = 0;
@@ -765,19 +782,29 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
     // MPI здесь пока что только для движения волны по OX
     if (axis == Axis::Ox) {
       int64_t local_Nx = field.get_Nx();
-      // for (int coordX = get_coords()[0]; coordX > 0; --coordX) {
-      for (int coordY = get_coords()[1]; coordY > 0; --coordY) {
+      for (int coordX = get_coords()[0]; coordX > 0; --coordX) {
+      // for (int coordY = get_coords()[1]; coordY > 0; --coordY) {
         // int neighbor_coords[2] = {coordX - 1, get_coords()[1]}; // Координаты соседнего левого процесса
         // int neighbor_coords[2] = {get_coords()[0], coordY - 1}; // Координаты соседнего левого процесса
         // int other_rank = 0;
 
+        // if (ndims == 2) {
+        //   neighbor_coords[0] = get_coords()[0];
+        //   neighbor_coords[1] = coordY - 1;
+        // }
+        // else if (ndims == 3) {
+        //   neighbor_coords[0] = get_coords()[0];
+        //   neighbor_coords[1] = coordY - 1;
+        //   neighbor_coords[2] = get_coords()[2];
+        // }
+
         if (ndims == 2) {
-          neighbor_coords[0] = get_coords()[0];
-          neighbor_coords[1] = coordY - 1;
+          neighbor_coords[0] = coordX - 1;
+          neighbor_coords[1] = get_coords()[1];
         }
         else if (ndims == 3) {
-          neighbor_coords[0] = get_coords()[0];
-          neighbor_coords[1] = coordY - 1;
+          neighbor_coords[0] = coordX - 1;
+          neighbor_coords[1] = get_coords()[1];
           neighbor_coords[2] = get_coords()[2];
         }
 
@@ -857,9 +884,17 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
           B_field(*i, *j, *k) =
             sin(2.0 * PI * (coordinate + delta_coordinate * coeff - ai_bi.first) /
               (ai_bi.second - ai_bi.first));
-
         }
+    
     boundary_synchronization(cart_comm);
+    // for (int64_t a = 0; a < field.get_Nx(); ++a)
+    //   for (int64_t b = 0; b < field.get_Ny(); ++b)
+    //     for (int64_t c = 0; c < field.get_Nz(); ++c)
+    //     {
+    //       if (Ey(a, b, c) != 0.0) {
+    //         std::cout << "Process " << rank << " Ey: " << Ey(a, b, c) << std::endl;
+    //       }
+    //     }
     // if (rank == 0) {
     //     for (int i = 0; i < Bz.get_field().size(); ++i)
     //         Bz.get_field()[i] = i;

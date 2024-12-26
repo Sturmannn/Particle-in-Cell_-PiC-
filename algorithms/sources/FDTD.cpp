@@ -276,6 +276,11 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
   int64_t j{0};
   int64_t k{k_value};
 
+  if (rank == 0) {
+    std::cout << "Nz = " << Nz << " _Nz = " << _Nz << " k_value = " << k_value << std::endl;
+    std::cout << "dx = " << dx << " dy = " << dy << " dz = " << dz << std::endl;
+  }
+
   // for (double time = 0.0; time < t; time += E_dt) // ПОПРАВИТЬ НА time += E_dt
   if (Nz < 2) {
 // #pragma omp parallel private(i, j) 
@@ -325,13 +330,13 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
       boundary_synchronization(cart_comm);
     }
   }
-  }  /* else {
-#pragma omp parallel private(i, j, k)
+  }  else {
+// #pragma omp parallel private(i, j, k)
     {
       for (int64_t time = 0; time < t; ++time) // ПОПРАВИТЬ НА time += E_dt
       {
         // std::cout << "Hello from " << omp_get_thread_num() << std::endl;
-#pragma omp for collapse(3)
+// #pragma omp for collapse(3)
         for (i = 0; i < Nx; ++i)
           for (j = 0; j < Ny; ++j)
             for (k = k_value; k < _Nz; ++k) {
@@ -350,8 +355,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
                                     ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
                                      (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
             }
-        boundary_synchronization_3D();
-#pragma omp for collapse(3)
+        boundary_synchronization_3D(cart_comm);
+// #pragma omp for collapse(3)
         for (i = 0; i < Nx; ++i)
           for (j = 0; j < Ny; ++j)
             for (k = k_value; k < _Nz; ++k) {
@@ -368,8 +373,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
                                     ((By(i, j, k) - By(i - 1, j, k)) / dx -
                                      (Bx(i, j, k) - Bx(i, j - 1, k)) / dy);
             }
-        boundary_synchronization_3D();
-#pragma omp for collapse(3)
+        boundary_synchronization_3D(cart_comm);
+// #pragma omp for collapse(3)
         for (i = 0; i < Nx; ++i)
           for (j = 0; j < Ny; ++j)
             for (k = k_value; k < _Nz; ++k) {
@@ -386,10 +391,10 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
                                     ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
                                      (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
             }
-        boundary_synchronization_3D();
+        boundary_synchronization_3D(cart_comm);
       }
     }
-  } */
+  }
 
  if (rank == 0) {
     std::cout << "End shifted_field_update(const int64_t t)" << std::endl;
@@ -552,11 +557,11 @@ void FDTD::FDTD::boundary_synchronization(MPI_Comm cart_comm) {
 
 // Получение рангов соседних процессов
 int left, right, up, down;
-// MPI_Cart_shift(cart_comm, 0, 1, &left, &right);
-// MPI_Cart_shift(cart_comm, 1, 1, &up, &down);
+MPI_Cart_shift(cart_comm, 0, 1, &left, &right);
+MPI_Cart_shift(cart_comm, 1, 1, &up, &down);
 
-MPI_Cart_shift(cart_comm, 0, 1, &up, &down);
-MPI_Cart_shift(cart_comm, 1, 1, &left, &right);
+// MPI_Cart_shift(cart_comm, 0, 1, &up, &down);
+// MPI_Cart_shift(cart_comm, 1, 1, &left, &right);
 
 // MPI_Barrier(cart_comm);
 // std::cout << "rank = " << rank << " left = " << left << " right = " << right << " up = " << up << " down = " << down << std::endl;
@@ -1033,31 +1038,24 @@ MPI_Cart_shift(cart_comm, 2, 1, &down, &up);
   std::vector<std::vector<double>> left_send(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
   std::vector<std::vector<double>> right_receive(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
 
-  if (rank == 0) {
-    std::cout << "Ny = " << Ny << " Nz = " << Nz << std::endl;
-    std::cout << "size = " << right_receive[0].size() << std::endl;
-    std::cout << "(Ny + 2) * (Nz + 2) = " << (Ny + 2) * (Nz + 2) << std::endl;
-  }
+  // if (rank == 0) {
+  //   std::cout << "Ny = " << Ny << " Nz = " << Nz << std::endl;
+  //   std::cout << "size = " << right_receive[0].size() << std::endl;
+  //   std::cout << "(Ny + 2) * (Nz + 2) = " << (Ny + 2) * (Nz + 2) << std::endl;
+  // }
 
-  // Предположим, что Ny и Nz определены правильно
-int buffer_size = (Ny + 2) * (Nz + 2);
-
-// Убедитесь, что массивы имеют правильный размер
-for (int i = 0; i < 6; ++i) {
-    left_send[i].resize(buffer_size);
-    right_receive[i].resize(buffer_size);
-}
-
+  // std::cout << "Rank " << rank << ": Nx = " << Nx << " Ny = " << Ny << ", Nz = " << Nz << " Neighbours: left = " << left << ", right = " << right << " up = " << up << ", down = " << down << ", front = " << front << ", back = " << back << std::endl;
 
   // Заполняем векторы данными для отправки
   for (int64_t y = 0; y < Ny + 2; ++y) {
     for (int64_t z = 0; z < Nz + 2; ++z) {
-      left_send[0][y * Nz + z] = Ex(0, y - 1, z - 1); // Ex
-      left_send[1][y * Nz + z] = Ey(0, y - 1, z - 1); // Ey
-      left_send[2][y * Nz + z] = Ez(0, y - 1, z - 1); // Ez
-      left_send[3][y * Nz + z] = Bx(0, y - 1, z - 1); // Bx
-      left_send[4][y * Nz + z] = By(0, y - 1, z - 1); // By
-      left_send[5][y * Nz + z] = Bz(0, y - 1, z - 1); // Bz
+      int index = y * (Nz + 2) + z;
+      left_send[0][index] = Ex(0, y - 1, z - 1); // Ex
+      left_send[1][index] = Ey(0, y - 1, z - 1); // Ey
+      left_send[2][index] = Ez(0, y - 1, z - 1); // Ez
+      left_send[3][index] = Bx(0, y - 1, z - 1); // Bx
+      left_send[4][index] = By(0, y - 1, z - 1); // By
+      left_send[5][index] = Bz(0, y - 1, z - 1); // Bz
     }
   }
 
@@ -1086,10 +1084,6 @@ for (int i = 0; i < 6; ++i) {
       Bz(Nx, y - 1, z - 1) = right_receive[5][y * Nz + z]; // Bz
     }
   }
-
-  std::cout << "IT'S OK" << std::endl;
-  MPI_Finalize();
-  exit(0);
 
   // 2 ПУНКТ ---------------------------------------------------
   // Векторы для отправки и приёма правой боковой плоскости
