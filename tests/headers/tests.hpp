@@ -92,7 +92,7 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   // При изменении размеров сетки, не забыть изменить и размеры поддомена
   int MPI_dimension = 3;
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 16};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {64, 64, 64};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   std::tuple<double, double, double> dx_dy_dz = 
@@ -108,7 +108,7 @@ TEST(Test_version_comparison, shifted_OZ) {
   double dx = std::get<0>(dx_dy_dz);
   double dt = 0.25 * dx / C;
   // int64_t t = 250; // Задание количества итераций
-  int64_t t = 10; // Задание количества итераций
+  int64_t t = 150; // Задание количества итераций
 
     int world_size;
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -134,7 +134,14 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);
+
+  double start_time = MPI_Wtime();
   test.numerical_solution(t, shift, test.get_cart_comm());
+  double end_time = MPI_Wtime();
+  double elapsed_time = end_time - start_time;
+  if (rank == 0) {
+    std::cout << "Elapsed time: " << elapsed_time << " seconds" << std::endl;
+  }
 
 
   Field::ComputingField::clear_files(path_to_calculated_data_directory);

@@ -639,7 +639,7 @@ void gtest::Test_obj::create_cartesian_topology(int world_size, int MPI_dimensio
   // Создание декартовой топологии
 
   // DEBUG ----------------------------
-  dims[0] = 2; dims[1] = 3; dims[2] = 4;
+  // dims[0] = 2; dims[1] = 3; dims[2] = 4;
   // ----------------------------
 
   if (MPI_dimension == 2) {

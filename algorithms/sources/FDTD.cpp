@@ -1031,218 +1031,480 @@ MPI_Cart_shift(cart_comm, 2, 1, &down, &up);
   // std::cout << std::endl;
   // std::cout << "Rank: " << rank << " Left: " << left << " Right: " << right << " Up: " << up << " Down: " << down << " Front: " << front << " Back: " << back 
   //  << std::endl;
-  
 
   // 1 ПУНКТ ---------------------------------------------------
-  // Векторы для отправки и приёма левой боковой плоскости
-  std::vector<std::vector<double>> left_send(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
-  std::vector<std::vector<double>> right_receive(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
-
-  // if (rank == 0) {
-  //   std::cout << "Ny = " << Ny << " Nz = " << Nz << std::endl;
-  //   std::cout << "size = " << right_receive[0].size() << std::endl;
-  //   std::cout << "(Ny + 2) * (Nz + 2) = " << (Ny + 2) * (Nz + 2) << std::endl;
-  // }
-
-  // std::cout << "Rank " << rank << ": Nx = " << Nx << " Ny = " << Ny << ", Nz = " << Nz << " Neighbours: left = " << left << ", right = " << right << " up = " << up << ", down = " << down << ", front = " << front << ", back = " << back << std::endl;
+  // Векторы для отправки и приёма левой грани
+  std::vector<std::vector<double>> left_send(6, std::vector<double>(Ny * Nz, 0.0));
+  std::vector<std::vector<double>> right_receive(6, std::vector<double>(Ny * Nz, 0.0));
 
   // Заполняем векторы данными для отправки
-  for (int64_t y = 0; y < Ny + 2; ++y) {
-    for (int64_t z = 0; z < Nz + 2; ++z) {
-      int index = y * (Nz + 2) + z;
-      left_send[0][index] = Ex(0, y - 1, z - 1); // Ex
-      left_send[1][index] = Ey(0, y - 1, z - 1); // Ey
-      left_send[2][index] = Ez(0, y - 1, z - 1); // Ez
-      left_send[3][index] = Bx(0, y - 1, z - 1); // Bx
-      left_send[4][index] = By(0, y - 1, z - 1); // By
-      left_send[5][index] = Bz(0, y - 1, z - 1); // Bz
+  for (int64_t y = 0; y < Ny; ++y) {
+    for (int64_t z = 0; z < Nz; ++z) {
+      int index = y * Nz + z;
+      left_send[0][index] = Ex(0, y, z); // Ex
+      left_send[1][index] = Ey(0, y, z); // Ey
+      left_send[2][index] = Ez(0, y, z); // Ez
+      left_send[3][index] = Bx(0, y, z); // Bx
+      left_send[4][index] = By(0, y, z); // By
+      left_send[5][index] = Bz(0, y, z); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(left_send[0].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1,
-    right_receive[0].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[1].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1, 
-    right_receive[1].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[2].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1, 
-    right_receive[2].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[3].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1,
-    right_receive[3].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[4].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1,
-    right_receive[4].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[5].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1,
-    right_receive[5].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(left_send[0].data(), Ny * Nz, MPI_DOUBLE, left, 1,
+    right_receive[0].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(left_send[1].data(), Ny * Nz, MPI_DOUBLE, left, 1,
+    right_receive[1].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(left_send[2].data(), Ny * Nz, MPI_DOUBLE, left, 1,
+    right_receive[2].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(left_send[3].data(), Ny * Nz, MPI_DOUBLE, left, 1,
+    right_receive[3].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(left_send[4].data(), Ny * Nz, MPI_DOUBLE, left, 1,
+    right_receive[4].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(left_send[5].data(), Ny * Nz, MPI_DOUBLE, left, 1,
+    right_receive[5].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
 
   // Записываем данные из вектора приёма в поля
-  for (int64_t y = 0; y < Ny + 2; ++y) {
-    for (int64_t z = 0; z < Nz + 2; ++z) {
-      Ex(Nx, y - 1, z - 1) = right_receive[0][y * Nz + z]; // Ex
-      Ey(Nx, y - 1, z - 1) = right_receive[1][y * Nz + z]; // Ey
-      Ez(Nx, y - 1, z - 1) = right_receive[2][y * Nz + z]; // Ez
-      Bx(Nx, y - 1, z - 1) = right_receive[3][y * Nz + z]; // Bx
-      By(Nx, y - 1, z - 1) = right_receive[4][y * Nz + z]; // By
-      Bz(Nx, y - 1, z - 1) = right_receive[5][y * Nz + z]; // Bz
+  for (int64_t y = 0; y < Ny; ++y) {
+    for (int64_t z = 0; z < Nz; ++z) {
+      Ex(Nx, y, z) = right_receive[0][y * Nz + z]; // Ex
+      Ey(Nx, y, z) = right_receive[1][y * Nz + z]; // Ey
+      Ez(Nx, y, z) = right_receive[2][y * Nz + z]; // Ez
+      Bx(Nx, y, z) = right_receive[3][y * Nz + z]; // Bx
+      By(Nx, y, z) = right_receive[4][y * Nz + z]; // By
+      Bz(Nx, y, z) = right_receive[5][y * Nz + z]; // Bz
     }
   }
-
+  
   // 2 ПУНКТ ---------------------------------------------------
-  // Векторы для отправки и приёма правой боковой плоскости
-  std::vector<std::vector<double>> right_send(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
-  std::vector<std::vector<double>> left_receive(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
+  // Векторы для отправки и приёма правой грани
+  std::vector<std::vector<double>> right_send(6, std::vector<double>(Ny * Nz, 0.0));
+  std::vector<std::vector<double>> left_receive(6, std::vector<double>(Ny * Nz, 0.0));
 
   // Заполняем векторы данными для отправки
-  for (int64_t y = 0; y < Ny + 2; ++y) {
-    for (int64_t z = 0; z < Nz + 2; ++z) {
-      right_send[0][y * Nz + z] = Ex(Nx - 1, y - 1, z - 1); // Ex
-      right_send[1][y * Nz + z] = Ey(Nx - 1, y - 1, z - 1); // Ey
-      right_send[2][y * Nz + z] = Ez(Nx - 1, y - 1, z - 1); // Ez
-      right_send[3][y * Nz + z] = Bx(Nx - 1, y - 1, z - 1); // Bx
-      right_send[4][y * Nz + z] = By(Nx - 1, y - 1, z - 1); // By
-      right_send[5][y * Nz + z] = Bz(Nx - 1, y - 1, z - 1); // Bz
+  for (int64_t y = 0; y < Ny; ++y) {
+    for (int64_t z = 0; z < Nz; ++z) {
+      int index = y * Nz + z;
+      right_send[0][index] = Ex(Nx - 1, y, z); // Ex
+      right_send[1][index] = Ey(Nx - 1, y, z); // Ey
+      right_send[2][index] = Ez(Nx - 1, y, z); // Ez
+      right_send[3][index] = Bx(Nx - 1, y, z); // Bx
+      right_send[4][index] = By(Nx - 1, y, z); // By
+      right_send[5][index] = Bz(Nx - 1, y, z); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(right_send[0].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
-    left_receive[0].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[1].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
-    left_receive[1].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[2].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
-    left_receive[2].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[3].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
-    left_receive[3].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[4].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
-    left_receive[4].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[5].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
-    left_receive[5].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(right_send[0].data(), Ny * Nz, MPI_DOUBLE, right, 2,
+    left_receive[0].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(right_send[1].data(), Ny * Nz, MPI_DOUBLE, right, 2,
+    left_receive[1].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(right_send[2].data(), Ny * Nz, MPI_DOUBLE, right, 2,
+    left_receive[2].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(right_send[3].data(), Ny * Nz, MPI_DOUBLE, right, 2,
+    left_receive[3].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(right_send[4].data(), Ny * Nz, MPI_DOUBLE, right, 2,
+    left_receive[4].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(right_send[5].data(), Ny * Nz, MPI_DOUBLE, right, 2,
+    left_receive[5].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
 
   // Записываем данные из вектора приёма в поля
-  for (int64_t y = 0; y < Ny + 2; ++y) {
-    for (int64_t z = 0; z < Nz + 2; ++z) {
-      Ex(-1, y - 1, z - 1) = left_receive[0][y * Nz + z]; // Ex
-      Ey(-1, y - 1, z - 1) = left_receive[1][y * Nz + z]; // Ey
-      Ez(-1, y - 1, z - 1) = left_receive[2][y * Nz + z]; // Ez
-      Bx(-1, y - 1, z - 1) = left_receive[3][y * Nz + z]; // Bx
-      By(-1, y - 1, z - 1) = left_receive[4][y * Nz + z]; // By
-      Bz(-1, y - 1, z - 1) = left_receive[5][y * Nz + z]; // Bz
+  for (int64_t y = 0; y < Ny; ++y) {
+    for (int64_t z = 0; z < Nz; ++z) {
+      Ex(-1, y, z) = left_receive[0][y * Nz + z]; // Ex
+      Ey(-1, y, z) = left_receive[1][y * Nz + z]; // Ey
+      Ez(-1, y, z) = left_receive[2][y * Nz + z]; // Ez
+      Bx(-1, y, z) = left_receive[3][y * Nz + z]; // Bx
+      By(-1, y, z) = left_receive[4][y * Nz + z]; // By
+      Bz(-1, y, z) = left_receive[5][y * Nz + z]; // Bz
     }
   }
-
+  
   // 3 ПУНКТ ---------------------------------------------------
-  // Векторы для отправки и приёма дальней плоскости
-  std::vector<std::vector<double>> back_send(6, std::vector<double>(Nx * (Nz + 2), 0.0));
-  std::vector<std::vector<double>> front_receive(6, std::vector<double>(Nx * (Nz + 2), 0.0));
+  // Векторы для отправки и приёма дальней грани
+  std::vector<std::vector<double>> back_send(6, std::vector<double>((Nx + 2) * Nz, 0.0));
+  std::vector<std::vector<double>> front_receive(6, std::vector<double>((Nx + 2) * Nz, 0.0));
 
   // Заполняем векторы данными для отправки
-  for (int64_t x = 0; x < Nx; ++x) {
-    for (int64_t z = 0; z < Nz + 2; ++z) {
-      back_send[0][x * Nz + z] = Ex(x, Ny - 1, z - 1); // Ex
-      back_send[1][x * Nz + z] = Ey(x, Ny - 1, z - 1); // Ey
-      back_send[2][x * Nz + z] = Ez(x, Ny - 1, z - 1); // Ez
-      back_send[3][x * Nz + z] = Bx(x, Ny - 1, z - 1); // Bx
-      back_send[4][x * Nz + z] = By(x, Ny - 1, z - 1); // By
-      back_send[5][x * Nz + z] = Bz(x, Ny - 1, z - 1); // Bz
+  for (int64_t x = -1; x < Nx + 1; ++x) {
+    for (int64_t z = 0; z < Nz; ++z) {
+      int index = (x + 1) * Nz + z;
+      back_send[0][index] = Ex(x, Ny - 1, z); // Ex
+      back_send[1][index] = Ey(x, Ny - 1, z); // Ey
+      back_send[2][index] = Ez(x, Ny - 1, z); // Ez
+      back_send[3][index] = Bx(x, Ny - 1, z); // Bx
+      back_send[4][index] = By(x, Ny - 1, z); // By
+      back_send[5][index] = Bz(x, Ny - 1, z); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(back_send[0].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
-    front_receive[0].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[1].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
-    front_receive[1].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[2].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
-    front_receive[2].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[3].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
-    front_receive[3].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[4].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
-    front_receive[4].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[5].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3, 
-    front_receive[5].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(back_send[0].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
+    front_receive[0].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(back_send[1].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
+    front_receive[1].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(back_send[2].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
+    front_receive[2].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(back_send[3].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
+    front_receive[3].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(back_send[4].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
+    front_receive[4].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(back_send[5].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
+    front_receive[5].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
 
   // Записываем данные из вектора приёма в поля
-  for (int64_t x = 0; x < Nx; ++x) {
-    for (int64_t z = 0; z < Nz + 2; ++z) {
-      Ex(x, -1, z - 1) = front_receive[0][x * Nz + z]; // Ex
-      Ey(x, -1, z - 1) = front_receive[1][x * Nz + z]; // Ey
-      Ez(x, -1, z - 1) = front_receive[2][x * Nz + z]; // Ez
-      Bx(x, -1, z - 1) = front_receive[3][x * Nz + z]; // Bx
-      By(x, -1, z - 1) = front_receive[4][x * Nz + z]; // By
-      Bz(x, -1, z - 1) = front_receive[5][x * Nz + z]; // Bz
+  for (int64_t x = -1; x < Nx + 1; ++x) {
+    for (int64_t z = 0; z < Nz; ++z) {
+      Ex(x, -1, z) = front_receive[0][(x + 1) * Nz + z]; // Ex
+      Ey(x, -1, z) = front_receive[1][(x + 1) * Nz + z]; // Ey
+      Ez(x, -1, z) = front_receive[2][(x + 1) * Nz + z]; // Ez
+      Bx(x, -1, z) = front_receive[3][(x + 1) * Nz + z]; // Bx
+      By(x, -1, z) = front_receive[4][(x + 1) * Nz + z]; // By
+      Bz(x, -1, z) = front_receive[5][(x + 1) * Nz + z]; // Bz
     }
   }
 
   // 4 ПУНКТ ---------------------------------------------------
-  // Векторы для отправки и приёма ближней плоскости
-  std::vector<std::vector<double>> front_send(6, std::vector<double>(Nx * (Nz + 2), 0.0));
-  std::vector<std::vector<double>> back_receive(6, std::vector<double>(Nx * (Nz + 2), 0.0));
+  // Векторы для отправки и приёма ближней грани
+  std::vector<std::vector<double>> front_send(6, std::vector<double>((Nx + 2) * Nz, 0.0));
+  std::vector<std::vector<double>> back_receive(6, std::vector<double>((Nx + 2) * Nz, 0.0));
 
   // Заполняем векторы данными для отправки
-  for (int64_t x = 0; x < Nx; ++x) {
-    for (int64_t z = 0; z < Nz + 2; ++z) {
-      front_send[0][x * Nz + z] = Ex(x, 0, z - 1); // Ex
-      front_send[1][x * Nz + z] = Ey(x, 0, z - 1); // Ey
-      front_send[2][x * Nz + z] = Ez(x, 0, z - 1); // Ez
-      front_send[3][x * Nz + z] = Bx(x, 0, z - 1); // Bx
-      front_send[4][x * Nz + z] = By(x, 0, z - 1); // By
-      front_send[5][x * Nz + z] = Bz(x, 0, z - 1); // Bz
+  for (int64_t x = -1; x < Nx + 1; ++x) {
+    for (int64_t z = 0; z < Nz; ++z) {
+      int index = (x + 1) * Nz + z;
+      front_send[0][index] = Ex(x, 0, z); // Ex
+      front_send[1][index] = Ey(x, 0, z); // Ey
+      front_send[2][index] = Ez(x, 0, z); // Ez
+      front_send[3][index] = Bx(x, 0, z); // Bx
+      front_send[4][index] = By(x, 0, z); // By
+      front_send[5][index] = Bz(x, 0, z); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(front_send[0].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
-    back_receive[0].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[1].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
-    back_receive[1].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[2].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
-    back_receive[2].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[3].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
-    back_receive[3].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[4].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
-    back_receive[4].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[5].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
-    back_receive[5].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  
+  MPI_Sendrecv(front_send[0].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
+    back_receive[0].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(front_send[1].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
+    back_receive[1].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(front_send[2].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
+    back_receive[2].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(front_send[3].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
+    back_receive[3].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(front_send[4].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
+    back_receive[4].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(front_send[5].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
+    back_receive[5].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+
   // Записываем данные из вектора приёма в поля
-  for (int64_t x = 0; x < Nx; ++x) {
-    for (int64_t z = 0; z < Nz + 2; ++z) {
-      Ex(x, Ny, z - 1) = back_receive[0][x * Nz + z]; // Ex
-      Ey(x, Ny, z - 1) = back_receive[1][x * Nz + z]; // Ey
-      Ez(x, Ny, z - 1) = back_receive[2][x * Nz + z]; // Ez
-      Bx(x, Ny, z - 1) = back_receive[3][x * Nz + z]; // Bx
-      By(x, Ny, z - 1) = back_receive[4][x * Nz + z]; // By
-      Bz(x, Ny, z - 1) = back_receive[5][x * Nz + z]; // Bz
+  for (int64_t x = -1; x < Nx + 1; ++x) {
+    for (int64_t z = 0; z < Nz; ++z) {
+      Ex(x, Ny, z) = back_receive[0][(x + 1) * Nz + z]; // Ex
+      Ey(x, Ny, z) = back_receive[1][(x + 1) * Nz + z]; // Ey
+      Ez(x, Ny, z) = back_receive[2][(x + 1) * Nz + z]; // Ez
+      Bx(x, Ny, z) = back_receive[3][(x + 1) * Nz + z]; // Bx
+      By(x, Ny, z) = back_receive[4][(x + 1) * Nz + z]; // By
+      Bz(x, Ny, z) = back_receive[5][(x + 1) * Nz + z]; // Bz
     }
   }
 
   // 5 ПУНКТ ---------------------------------------------------
+  // Векторы для отправки и приёма верхней грани
+  std::vector<std::vector<double>> up_send(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+  std::vector<std::vector<double>> down_receive(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+
+  // Заполняем векторы данными для отправки
+  for (int64_t x = -1; x < Nx + 1; ++x) {
+    for (int64_t y = -1; y < Ny + 1; ++y) {
+      int index = (x + 1) * (Ny + 2) + y + 1;
+      up_send[0][index] = Ex(x, y, Nz - 1); // Ex
+      up_send[1][index] = Ey(x, y, Nz - 1); // Ey
+      up_send[2][index] = Ez(x, y, Nz - 1); // Ez
+      up_send[3][index] = Bx(x, y, Nz - 1); // Bx
+      up_send[4][index] = By(x, y, Nz - 1); // By
+      up_send[5][index] = Bz(x, y, Nz - 1); // Bz
+    }
+  }
+
   // Отправляем и получаем данные
-  MPI_Sendrecv(&Ex(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    &Ex(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&Ey(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    &Ey(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&Ez(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    &Ez(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&Bx(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    &Bx(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&By(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    &By(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&Bz(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    &Bz(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(up_send[0].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+    down_receive[0].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(up_send[1].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+    down_receive[1].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(up_send[2].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+    down_receive[2].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(up_send[3].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+    down_receive[3].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(up_send[4].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+    down_receive[4].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(up_send[5].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+    down_receive[5].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+
+  // Записываем данные из вектора приёма в поля
+  for (int64_t x = -1; x < Nx + 1; ++x) {
+    for (int64_t y = -1; y < Ny + 1; ++y) {
+      Ex(x, y, -1) = down_receive[0][(x + 1) * (Ny + 2) + y + 1]; // Ex
+      Ey(x, y, -1) = down_receive[1][(x + 1) * (Ny + 2) + y + 1]; // Ey
+      Ez(x, y, -1) = down_receive[2][(x + 1) * (Ny + 2) + y + 1]; // Ez
+      Bx(x, y, -1) = down_receive[3][(x + 1) * (Ny + 2) + y + 1]; // Bx
+      By(x, y, -1) = down_receive[4][(x + 1) * (Ny + 2) + y + 1]; // By
+      Bz(x, y, -1) = down_receive[5][(x + 1) * (Ny + 2) + y + 1]; // Bz
+    }
+  }
 
   // 6 ПУНКТ ---------------------------------------------------
+  // Векторы для отправки и приёма нижней грани
+  std::vector<std::vector<double>> down_send(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+  std::vector<std::vector<double>> up_receive(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+
+  // Заполняем векторы данными для отправки
+  for (int64_t x = -1; x < Nx + 1; ++x) {
+    for (int64_t y = -1; y < Ny + 1; ++y) {
+      int index = (x + 1) * (Ny + 2) + y + 1;
+      down_send[0][index] = Ex(x, y, 0); // Ex
+      down_send[1][index] = Ey(x, y, 0); // Ey
+      down_send[2][index] = Ez(x, y, 0); // Ez
+      down_send[3][index] = Bx(x, y, 0); // Bx
+      down_send[4][index] = By(x, y, 0); // By
+      down_send[5][index] = Bz(x, y, 0); // Bz
+    }
+  }
+
   // Отправляем и получаем данные
-  MPI_Sendrecv(&Ex(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    &Ex(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&Ey(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    &Ey(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&Ez(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    &Ez(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&Bx(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    &Bx(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&By(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    &By(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(&Bz(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    &Bz(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(down_send[0].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+    up_receive[0].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(down_send[1].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+    up_receive[1].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(down_send[2].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+    up_receive[2].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(down_send[3].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+    up_receive[3].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(down_send[4].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+    up_receive[4].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(down_send[5].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+    up_receive[5].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+
+  // Записываем данные из вектора приёма в поля
+  for (int64_t x = -1; x < Nx + 1; ++x) {
+    for (int64_t y = -1; y < Ny + 1; ++y) {
+      Ex(x, y, Nz) = up_receive[0][(x + 1) * (Ny + 2) + y + 1]; // Ex
+      Ey(x, y, Nz) = up_receive[1][(x + 1) * (Ny + 2) + y + 1]; // Ey
+      Ez(x, y, Nz) = up_receive[2][(x + 1) * (Ny + 2) + y + 1]; // Ez
+      Bx(x, y, Nz) = up_receive[3][(x + 1) * (Ny + 2) + y + 1]; // Bx
+      By(x, y, Nz) = up_receive[4][(x + 1) * (Ny + 2) + y + 1]; // By
+      Bz(x, y, Nz) = up_receive[5][(x + 1) * (Ny + 2) + y + 1]; // Bz
+    }
+  }
+
+  
+
+
+// ---------------------------------------------------------------------------------------------------------------------
+// ---------------------Не рабочий вариант ---------------------------------------------
+// ---------------------------------------------------------------------------------------------------------------------
+
+  // // 1 ПУНКТ ---------------------------------------------------
+  // // Векторы для отправки и приёма левой боковой плоскости
+  // std::vector<std::vector<double>> left_send(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
+  // std::vector<std::vector<double>> right_receive(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
+
+  // // Заполняем векторы данными для отправки
+  // for (int64_t y = 0; y < Ny + 2; ++y) {
+  //   for (int64_t z = 0; z < Nz + 2; ++z) {
+  //     int index = y * (Nz + 2) + z;
+  //     left_send[0][index] = Ex(0, y - 1, z - 1); // Ex
+  //     left_send[1][index] = Ey(0, y - 1, z - 1); // Ey
+  //     left_send[2][index] = Ez(0, y - 1, z - 1); // Ez
+  //     left_send[3][index] = Bx(0, y - 1, z - 1); // Bx
+  //     left_send[4][index] = By(0, y - 1, z - 1); // By
+  //     left_send[5][index] = Bz(0, y - 1, z - 1); // Bz
+  //   }
+  // }
+
+  // // Отправляем и получаем данные
+  // MPI_Sendrecv(left_send[0].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1,
+  //   right_receive[0].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(left_send[1].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1, 
+  //   right_receive[1].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(left_send[2].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1, 
+  //   right_receive[2].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(left_send[3].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1,
+  //   right_receive[3].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(left_send[4].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1,
+  //   right_receive[4].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(left_send[5].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 1,
+  //   right_receive[5].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+
+  // // Записываем данные из вектора приёма в поля
+  // for (int64_t y = 0; y < Ny + 2; ++y) {
+  //   for (int64_t z = 0; z < Nz + 2; ++z) {
+  //     Ex(Nx, y - 1, z - 1) = right_receive[0][y * Nz + z]; // Ex
+  //     Ey(Nx, y - 1, z - 1) = right_receive[1][y * Nz + z]; // Ey
+  //     Ez(Nx, y - 1, z - 1) = right_receive[2][y * Nz + z]; // Ez
+  //     Bx(Nx, y - 1, z - 1) = right_receive[3][y * Nz + z]; // Bx
+  //     By(Nx, y - 1, z - 1) = right_receive[4][y * Nz + z]; // By
+  //     Bz(Nx, y - 1, z - 1) = right_receive[5][y * Nz + z]; // Bz
+  //   }
+  // }
+
+  // // 2 ПУНКТ ---------------------------------------------------
+  // // Векторы для отправки и приёма правой боковой плоскости
+  // std::vector<std::vector<double>> right_send(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
+  // std::vector<std::vector<double>> left_receive(6, std::vector<double>((Ny + 2) * (Nz + 2), 0.0));
+
+  // // Заполняем векторы данными для отправки
+  // for (int64_t y = 0; y < Ny + 2; ++y) {
+  //   for (int64_t z = 0; z < Nz + 2; ++z) {
+  //     right_send[0][y * Nz + z] = Ex(Nx - 1, y - 1, z - 1); // Ex
+  //     right_send[1][y * Nz + z] = Ey(Nx - 1, y - 1, z - 1); // Ey
+  //     right_send[2][y * Nz + z] = Ez(Nx - 1, y - 1, z - 1); // Ez
+  //     right_send[3][y * Nz + z] = Bx(Nx - 1, y - 1, z - 1); // Bx
+  //     right_send[4][y * Nz + z] = By(Nx - 1, y - 1, z - 1); // By
+  //     right_send[5][y * Nz + z] = Bz(Nx - 1, y - 1, z - 1); // Bz
+  //   }
+  // }
+
+  // // Отправляем и получаем данные
+  // MPI_Sendrecv(right_send[0].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
+  //   left_receive[0].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(right_send[1].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
+  //   left_receive[1].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(right_send[2].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
+  //   left_receive[2].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(right_send[3].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
+  //   left_receive[3].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(right_send[4].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
+  //   left_receive[4].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(right_send[5].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, right, 2,
+  //   left_receive[5].data(), (Ny + 2) * (Nz + 2), MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+
+  // // Записываем данные из вектора приёма в поля
+  // for (int64_t y = 0; y < Ny + 2; ++y) {
+  //   for (int64_t z = 0; z < Nz + 2; ++z) {
+  //     Ex(-1, y - 1, z - 1) = left_receive[0][y * Nz + z]; // Ex
+  //     Ey(-1, y - 1, z - 1) = left_receive[1][y * Nz + z]; // Ey
+  //     Ez(-1, y - 1, z - 1) = left_receive[2][y * Nz + z]; // Ez
+  //     Bx(-1, y - 1, z - 1) = left_receive[3][y * Nz + z]; // Bx
+  //     By(-1, y - 1, z - 1) = left_receive[4][y * Nz + z]; // By
+  //     Bz(-1, y - 1, z - 1) = left_receive[5][y * Nz + z]; // Bz
+  //   }
+  // }
+
+  // // 3 ПУНКТ ---------------------------------------------------
+  // // Векторы для отправки и приёма дальней плоскости
+  // std::vector<std::vector<double>> back_send(6, std::vector<double>(Nx * (Nz + 2), 0.0));
+  // std::vector<std::vector<double>> front_receive(6, std::vector<double>(Nx * (Nz + 2), 0.0));
+
+  // // Заполняем векторы данными для отправки
+  // for (int64_t x = 0; x < Nx; ++x) {
+  //   for (int64_t z = 0; z < Nz + 2; ++z) {
+  //     back_send[0][x * Nz + z] = Ex(x, Ny - 1, z - 1); // Ex
+  //     back_send[1][x * Nz + z] = Ey(x, Ny - 1, z - 1); // Ey
+  //     back_send[2][x * Nz + z] = Ez(x, Ny - 1, z - 1); // Ez
+  //     back_send[3][x * Nz + z] = Bx(x, Ny - 1, z - 1); // Bx
+  //     back_send[4][x * Nz + z] = By(x, Ny - 1, z - 1); // By
+  //     back_send[5][x * Nz + z] = Bz(x, Ny - 1, z - 1); // Bz
+  //   }
+  // }
+
+  // // Отправляем и получаем данные
+  // MPI_Sendrecv(back_send[0].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
+  //   front_receive[0].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(back_send[1].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
+  //   front_receive[1].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(back_send[2].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
+  //   front_receive[2].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(back_send[3].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
+  //   front_receive[3].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(back_send[4].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3,
+  //   front_receive[4].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(back_send[5].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 3, 
+  //   front_receive[5].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+
+  // // Записываем данные из вектора приёма в поля
+  // for (int64_t x = 0; x < Nx; ++x) {
+  //   for (int64_t z = 0; z < Nz + 2; ++z) {
+  //     Ex(x, -1, z - 1) = front_receive[0][x * Nz + z]; // Ex
+  //     Ey(x, -1, z - 1) = front_receive[1][x * Nz + z]; // Ey
+  //     Ez(x, -1, z - 1) = front_receive[2][x * Nz + z]; // Ez
+  //     Bx(x, -1, z - 1) = front_receive[3][x * Nz + z]; // Bx
+  //     By(x, -1, z - 1) = front_receive[4][x * Nz + z]; // By
+  //     Bz(x, -1, z - 1) = front_receive[5][x * Nz + z]; // Bz
+  //   }
+  // }
+
+  // // 4 ПУНКТ ---------------------------------------------------
+  // // Векторы для отправки и приёма ближней плоскости
+  // std::vector<std::vector<double>> front_send(6, std::vector<double>(Nx * (Nz + 2), 0.0));
+  // std::vector<std::vector<double>> back_receive(6, std::vector<double>(Nx * (Nz + 2), 0.0));
+
+  // // Заполняем векторы данными для отправки
+  // for (int64_t x = 0; x < Nx; ++x) {
+  //   for (int64_t z = 0; z < Nz + 2; ++z) {
+  //     front_send[0][x * Nz + z] = Ex(x, 0, z - 1); // Ex
+  //     front_send[1][x * Nz + z] = Ey(x, 0, z - 1); // Ey
+  //     front_send[2][x * Nz + z] = Ez(x, 0, z - 1); // Ez
+  //     front_send[3][x * Nz + z] = Bx(x, 0, z - 1); // Bx
+  //     front_send[4][x * Nz + z] = By(x, 0, z - 1); // By
+  //     front_send[5][x * Nz + z] = Bz(x, 0, z - 1); // Bz
+  //   }
+  // }
+
+  // // Отправляем и получаем данные
+  // MPI_Sendrecv(front_send[0].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
+  //   back_receive[0].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(front_send[1].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
+  //   back_receive[1].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(front_send[2].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
+  //   back_receive[2].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(front_send[3].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
+  //   back_receive[3].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(front_send[4].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
+  //   back_receive[4].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(front_send[5].data(), Nx * (Nz + 2), MPI_DOUBLE, front, 4,
+  //   back_receive[5].data(), Nx * (Nz + 2), MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  
+  // // Записываем данные из вектора приёма в поля
+  // for (int64_t x = 0; x < Nx; ++x) {
+  //   for (int64_t z = 0; z < Nz + 2; ++z) {
+  //     Ex(x, Ny, z - 1) = back_receive[0][x * Nz + z]; // Ex
+  //     Ey(x, Ny, z - 1) = back_receive[1][x * Nz + z]; // Ey
+  //     Ez(x, Ny, z - 1) = back_receive[2][x * Nz + z]; // Ez
+  //     Bx(x, Ny, z - 1) = back_receive[3][x * Nz + z]; // Bx
+  //     By(x, Ny, z - 1) = back_receive[4][x * Nz + z]; // By
+  //     Bz(x, Ny, z - 1) = back_receive[5][x * Nz + z]; // Bz
+  //   }
+  // }
+
+  // // 5 ПУНКТ ---------------------------------------------------
+  // // Отправляем и получаем данные
+  // MPI_Sendrecv(&Ex(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+  //   &Ex(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&Ey(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+  //   &Ey(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&Ez(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+  //   &Ez(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&Bx(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+  //   &Bx(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&By(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+  //   &By(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&Bz(-1, -1, Nz - 1), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
+  //   &Bz(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+
+  // // 6 ПУНКТ ---------------------------------------------------
+  // // Отправляем и получаем данные
+  // MPI_Sendrecv(&Ex(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+  //   &Ex(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&Ey(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+  //   &Ey(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&Ez(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+  //   &Ez(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&Bx(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+  //   &Bx(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&By(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+  //   &By(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  // MPI_Sendrecv(&Bz(-1, -1, 0), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
+  //   &Bz(-1, -1, Nz), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
 
 // ---------------------------------------------------------------------------------------------------------------------
 // -----------------------------Старая синхронизация без MPI---------------------------------------------------
