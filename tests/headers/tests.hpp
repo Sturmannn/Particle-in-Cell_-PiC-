@@ -92,7 +92,7 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   // При изменении размеров сетки, не забыть изменить и размеры поддомена
   int MPI_dimension = 3;
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {64, 64, 64};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 32, 64};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   std::tuple<double, double, double> dx_dy_dz = 
@@ -117,7 +117,7 @@ TEST(Test_version_comparison, shifted_OZ) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
   Component E = Component::Ey;
-  Component B = Component::Bz;
+  Component B = Component::Bx;
   Shift shift = Shift::shifted;
   
   if (rank == 0) std::cout << "Axis: " << FDTD::FDTD::axisToString(E, B) << std::endl;

@@ -185,18 +185,17 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
 
       // Здесь coordX - это OY для индексации процессов в декартовой топологии
 
-      for (int coordY = get_coords()[1]; coordY > 0; --coordY) {
+      for (int coordX = get_coords()[0]; coordX > 0; --coordX) {
         // int neighbor_coords[2] = {coordX - 1, get_coords()[1]}; // Координаты соседнего левого процесса
         // int neighbor_coords[2] = {get_coords()[0], coordY - 1}; // Координаты соседнего левого процесса
         // int other_rank = 0;
-
         if (ndims == 2) {
-          neighbor_coords[0] = get_coords()[0];
-          neighbor_coords[1] = coordY - 1;
+          neighbor_coords[0] = coordX - 1;
+          neighbor_coords[1] = get_coords()[1];
         }
         else if (ndims == 3) {
-          neighbor_coords[0] = get_coords()[0];
-          neighbor_coords[1] = coordY - 1;
+          neighbor_coords[0] = coordX - 1;
+          neighbor_coords[1] = get_coords()[1];
           neighbor_coords[2] = get_coords()[2];
         }
         MPI_Cart_rank(cart_comm, neighbor_coords.data(), &other_rank); // Получаем ранг соседнего процесса
@@ -218,14 +217,35 @@ void gtest::Test_obj::analytical_default_solution(const Component E, const Compo
     }
     else if (axis == Axis::Oy) {
       int64_t local_Ny = field.get_Ny();
+      for (int coordY = get_coords()[1]; coordY > 0; --coordY) {
+        if (ndims == 2) {
+          neighbor_coords[0] = get_coords()[0];
+          neighbor_coords[1] = coordY - 1;
+        }
+        else if (ndims == 3) {
+          neighbor_coords[0] = get_coords()[0];
+          neighbor_coords[1] = coordY - 1;
+          neighbor_coords[2] = get_coords()[2];
+        }
+        MPI_Cart_rank(cart_comm, neighbor_coords.data(), &other_rank);
+        shift += all_local_Ny[other_rank];
+      }
       // MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
       // for (int i = 0; i < rank; ++i) shift += all_N[i];
-      
+
       coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
     }
     // С OZ пока вообще непонятно, так как пока что не предполагается движение по OZ
     else if (axis == Axis::Oz) {
       int64_t local_Nz = field.get_Nz();
+      for (int coordZ = get_coords()[2]; coordZ > 0; --coordZ) {
+        neighbor_coords[0] = get_coords()[0];
+        neighbor_coords[1] = get_coords()[1];
+        neighbor_coords[2] = coordZ - 1;
+        
+        MPI_Cart_rank(cart_comm, neighbor_coords.data(), &other_rank);
+        shift += all_local_Nz[other_rank];
+      }
       // MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
       // for (int i = 0; i < rank; ++i) shift += all_N[i];
       coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
@@ -819,12 +839,33 @@ void gtest::Test_obj::set_default_field(const Component E, const Component B, co
     }
     else if (axis == Axis::Oy) {
       int64_t local_Ny = field.get_Ny();
+      for (int coordY = get_coords()[1]; coordY > 0; --coordY) {
+        if (ndims == 2) {
+          neighbor_coords[0] = get_coords()[0];
+          neighbor_coords[1] = coordY - 1;
+        }
+        else if (ndims == 3) {
+          neighbor_coords[0] = get_coords()[0];
+          neighbor_coords[1] = coordY - 1;
+          neighbor_coords[2] = get_coords()[2];
+        }
+        MPI_Cart_rank(cart_comm, neighbor_coords.data(), &other_rank);
+        shift += all_local_Ny[other_rank];
+      }
       // MPI_Allgather(&local_Ny, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
       // for (int i = 0; i < rank; ++i) shift += all_N[i];
       coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
     }
     else if (axis == Axis::Oz) {
       int64_t local_Nz = field.get_Nz();
+      for (int coordZ = get_coords()[2]; coordZ > 0; --coordZ) {
+        neighbor_coords[0] = get_coords()[0];
+        neighbor_coords[1] = get_coords()[1];
+        neighbor_coords[2] = coordZ - 1;
+        
+        MPI_Cart_rank(cart_comm, neighbor_coords.data(), &other_rank);
+        shift += all_local_Nz[other_rank];
+      }
       // MPI_Allgather(&local_Nz, 1, MPI_INT64_T, all_N.data(), 1, MPI_INT64_T, MPI_COMM_WORLD);
       // for (int i = 0; i < rank; ++i) shift += all_N[i];
       coordinate = ai_bi.first + delta_coordinate * shift/* + delta_coordinate*/; // Для нескольких процессов
