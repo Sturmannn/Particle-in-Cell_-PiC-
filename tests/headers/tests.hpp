@@ -2,12 +2,15 @@
 #define __TESTS_HPP__
 
 #include <functional>
+#include <fstream>
 #include "FDTD.hpp"
 #include "gtest.h"
 
 
 //using FDTD::Axis;
 using FDTD::Component;
+
+constexpr const char *path_to_measurements_file = PATH_TO_MEASUREMENTS_FILE;
 
 namespace gtest {
 
@@ -92,7 +95,7 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   // При изменении размеров сетки, не забыть изменить и размеры поддомена
   int MPI_dimension = 3;
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 32, 64};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {64, 64, 64};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   std::tuple<double, double, double> dx_dy_dz = 
@@ -134,15 +137,26 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);
-
+  
+  MPI_Barrier(MPI_COMM_WORLD);
   double start_time = MPI_Wtime();
   test.numerical_solution(t, shift, test.get_cart_comm());
+  MPI_Barrier(MPI_COMM_WORLD);
   double end_time = MPI_Wtime();
   double elapsed_time = end_time - start_time;
   if (rank == 0) {
     std::cout << "Elapsed time: " << elapsed_time << " seconds" << std::endl;
-  }
-
+    
+    std::ofstream measure_file;
+    measure_file.open(path_to_measurements_file, std::ios::app);
+    if (measure_file.is_open()) {
+      measure_file << elapsed_time << std::endl;
+    }
+    else {
+      std::cerr << "The file for measurements can't be opened" << std::endl;
+    }
+    measure_file.close();
+  } 
 
   Field::ComputingField::clear_files(path_to_calculated_data_directory);
   Field::ComputingField::clear_files(path_to_analytical_data_directory);

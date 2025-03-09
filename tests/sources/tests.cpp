@@ -662,13 +662,14 @@ void gtest::Test_obj::create_cartesian_topology(int world_size, int MPI_dimensio
   // dims[0] = 2; dims[1] = 3; dims[2] = 4;
   // ----------------------------
 
+  // reorder = 1
   if (MPI_dimension == 2) {
     int periods[2] = {1, 1}; // С периодическими граничными условиями (для процессов)
-    MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims.data(), periods, 0, &cart_comm);
+    MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims.data(), periods, 1, &cart_comm);
   }
   else if (MPI_dimension == 3) {
     int periods[3] = {1, 1, 1}; // С периодическими граничными условиями (для процессов)
-    MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims.data(), periods, 0, &cart_comm);
+    MPI_Cart_create(MPI_COMM_WORLD, MPI_dimension, dims.data(), periods, 1, &cart_comm);
   }
   // Здесь по-хорошему ещё следует добавить и разбиение по одной оси, также связав логику с топологией, чтобы был универсальный код
 

@@ -22,6 +22,7 @@ endif()
 set(PATH_TO_CONVERGENCE_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/convergence.csv") # Это пока хз, оставлю как есть
 set(PATH_TO_CALCULATED_DATA_DIRECTORY "${CMAKE_SOURCE_DIR}/input_for_graphs/my_data/")
 set(PATH_TO_ANALYTICAL_DATA_DIRECTORY "${CMAKE_SOURCE_DIR}/input_for_graphs/analytical_data/")
+set(PATH_TO_MEASUREMENTS_FILE "${CMAKE_SOURCE_DIR}/measurements.csv")
 
 # # Определение путей к файлам с данными для графиков
 # set(PATH_TO_CONVERGENCE_DATA "${CMAKE_SOURCE_DIR}/input_for_graphs/convergence.csv")
@@ -32,6 +33,7 @@ set(PATH_TO_ANALYTICAL_DATA_DIRECTORY "${CMAKE_SOURCE_DIR}/input_for_graphs/anal
 add_definitions(-DPATH_TO_CONVERGENCE_DATA="${PATH_TO_CONVERGENCE_DATA}")
 add_definitions(-DPATH_TO_CALCULATED_DATA_DIRECTORY="${PATH_TO_CALCULATED_DATA_DIRECTORY}")
 add_definitions(-DPATH_TO_ANALYTICAL_DATA_DIRECTORY="${PATH_TO_ANALYTICAL_DATA_DIRECTORY}")
+add_definitions(-DPATH_TO_MEASUREMENTS_FILE="${PATH_TO_MEASUREMENTS_FILE}")
 # add_definitions(-DPATH_TO_CALCULATED_DATA="${PATH_TO_CALCULATED_DATA}")
 # add_definitions(-DPATH_TO_ANALYTICAL_DATA="${PATH_TO_ANALYTICAL_DATA}")
 
@@ -50,8 +52,9 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Tests/headers)
 
 # Подключение MPI
 find_package(MPI)
-if (MPI_FOUND)
-    message(STATUS "MPI FOUND")
+if (MPI_CXX_FOUND)
+    message(STATUS "MPI C++ FOUND - ${MPI_CXX_VERSION}")
+    # set(MPI_INCLUDE_DIR ${MPI_INCLUDE_PATH})
 else()
     message(WARNING "MPI NOT found")
 
