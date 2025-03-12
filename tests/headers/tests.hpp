@@ -5,6 +5,7 @@
 #include <fstream>
 #include "FDTD.hpp"
 #include "gtest.h"
+#include <omp.h>
 
 
 //using FDTD::Axis;
@@ -107,6 +108,17 @@ TEST(Test_version_comparison, shifted_OZ) {
   //   std::get<2>(dx_dy_dz) = 0.0;
   // }
   // double dt = 2e-15;
+  omp_set_num_threads(1);
+  printf("Max threads num: %d\n", omp_get_max_threads());
+  #pragma omp parallel
+  {
+    int thread_num = omp_get_thread_num();
+    printf("Hello from thread %d\n", thread_num);
+    if (omp_get_num_threads() == 0) {
+      printf("Number of threads: %d\n", omp_get_num_threads());
+    }
+  }
+
 
   double dx = std::get<0>(dx_dy_dz);
   double dt = 0.25 * dx / C;
@@ -119,8 +131,8 @@ TEST(Test_version_comparison, shifted_OZ) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  Component E = Component::Ey;
-  Component B = Component::Bx;
+  Component E = Component::Ex;
+  Component B = Component::By;
   Shift shift = Shift::shifted;
   
   if (rank == 0) std::cout << "Axis: " << FDTD::FDTD::axisToString(E, B) << std::endl;
@@ -133,7 +145,6 @@ TEST(Test_version_comparison, shifted_OZ) {
   // Внимательно проверять, что в field нужно передавать именно local размеры
   FDTD::FDTD field(test.get_local_Nx_Ny_Nz(), ax_ay_az, bx_by_bz, dx_dy_dz, dt); 
   test.initialize_field(field);
-
 
   test.analytical_default_solution(E, B, t * dt, shift);
   test.set_default_field(E, B, shift);

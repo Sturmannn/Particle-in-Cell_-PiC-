@@ -283,11 +283,11 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
 
   // for (double time = 0.0; time < t; time += E_dt) // ПОПРАВИТЬ НА time += E_dt
   if (Nz < 2) {
-// #pragma omp parallel private(i, j) 
+#pragma omp parallel private(i, j) 
   {
     for (int64_t time = 0; time < t; ++time) {
 
-// #pragma omp for collapse(2)
+#pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
           Bx(i, j) = Bx(i, j) + C * B_dt * (-(Ez(i, j + 1) - Ez(i, j)) / dy);
@@ -305,7 +305,7 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
       //     }      
       //   }                               
       boundary_synchronization(cart_comm);
-// #pragma omp for collapse(2)
+#pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
           Ex(i, j) = Ex(i, j) + C * E_dt * ((Bz(i, j) - Bz(i, j - 1)) / dy);
@@ -316,7 +316,7 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
 
         }
       boundary_synchronization(cart_comm);
-// #pragma omp for collapse(2)
+#pragma omp for collapse(2)
       for (i = 0; i < Nx; ++i)
         for (j = 0; j < Ny; ++j) {
           // if (rank == 0)
@@ -337,6 +337,7 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
       {
         // std::cout << "Hello from " << omp_get_thread_num() << std::endl;
 // #pragma omp for collapse(3)
+#pragma omp parallel for private(i, j, k) collapse(3)
         for (i = 0; i < Nx; ++i)
           for (j = 0; j < Ny; ++j)
             for (k = k_value; k < _Nz; ++k) {
@@ -357,6 +358,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
             }
         boundary_synchronization_3D(cart_comm);
 // #pragma omp for collapse(3)
+#pragma omp parallel for private(i, j, k) collapse(3)
+
         for (i = 0; i < Nx; ++i)
           for (j = 0; j < Ny; ++j)
             for (k = k_value; k < _Nz; ++k) {
@@ -375,6 +378,8 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
             }
         boundary_synchronization_3D(cart_comm);
 // #pragma omp for collapse(3)
+#pragma omp parallel for private(i, j, k) collapse(3)
+
         for (i = 0; i < Nx; ++i)
           for (j = 0; j < Ny; ++j)
             for (k = k_value; k < _Nz; ++k) {
@@ -570,7 +575,6 @@ if (left == MPI_PROC_NULL || right == MPI_PROC_NULL || up == MPI_PROC_NULL || do
   std::cout << "FDTD::FDTD::boundary_synchronization() neighbor rank error: MPI_PROC_NULL" << std::endl;
   exit(-1);
 }
-
 
 
 // 2 ПУНКТ ---------------------------------------------------
@@ -1033,271 +1037,258 @@ MPI_Cart_shift(cart_comm, 2, 1, &down, &up);
   //  << std::endl;
 
   // 1 ПУНКТ ---------------------------------------------------
-  // Векторы для отправки и приёма левой грани
-  std::vector<std::vector<double>> left_send(6, std::vector<double>(Ny * Nz, 0.0));
-  std::vector<std::vector<double>> right_receive(6, std::vector<double>(Ny * Nz, 0.0));
+  // // Векторы для отправки и приёма левой грани
 
-  // Заполняем векторы данными для отправки
+  
+  std::vector<double> left_send(Ny * Nz * 6, 0.0);
+  std::vector<double> right_receive(Ny * Nz * 6, 0.0);
+
+  #pragma omp parallel for collapse(2)
+  for (int y = 0; y < Ny; ++y)
+    for (int z = 0; z < Nz; ++z) {
+      int index = y * Nz + z;
+      left_send[index] = Ex(0, y, z); // Ex
+      left_send[index + (Ny * Nz) * 1] = Ey(0, y, z); // Ey
+      left_send[index + (Ny * Nz) * 2] = Ez(0, y, z); // Ez
+      left_send[index + (Ny * Nz) * 3] = Bx(0, y, z); // Bx
+      left_send[index + (Ny * Nz) * 4] = By(0, y, z); // By
+      left_send[index + (Ny * Nz) * 5] = Bz(0, y, z); // Bz
+    }
+
+  MPI_Sendrecv(left_send.data(), Ny * Nz * 6, MPI_DOUBLE, left, 1, 
+      right_receive.data(), 6 * Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  
+  // Записываем данные из вектора приёма в поля
+  #pragma omp parallel for collapse(2)
   for (int64_t y = 0; y < Ny; ++y) {
     for (int64_t z = 0; z < Nz; ++z) {
       int index = y * Nz + z;
-      left_send[0][index] = Ex(0, y, z); // Ex
-      left_send[1][index] = Ey(0, y, z); // Ey
-      left_send[2][index] = Ez(0, y, z); // Ez
-      left_send[3][index] = Bx(0, y, z); // Bx
-      left_send[4][index] = By(0, y, z); // By
-      left_send[5][index] = Bz(0, y, z); // Bz
+      Ex(Nx, y, z) = right_receive[index]; // Ex
+      Ey(Nx, y, z) = right_receive[index + (Ny * Nz) * 1]; // Ey
+      Ez(Nx, y, z) = right_receive[index + (Ny * Nz) * 2]; // Ez
+      Bx(Nx, y, z) = right_receive[index + (Ny * Nz) * 3]; // Bx
+      By(Nx, y, z) = right_receive[index + (Ny * Nz) * 4]; // By
+      Bz(Nx, y, z) = right_receive[index + (Ny * Nz) * 5]; // Bz
     }
   }
 
-  // Отправляем и получаем данные
-  MPI_Sendrecv(left_send[0].data(), Ny * Nz, MPI_DOUBLE, left, 1,
-    right_receive[0].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[1].data(), Ny * Nz, MPI_DOUBLE, left, 1,
-    right_receive[1].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[2].data(), Ny * Nz, MPI_DOUBLE, left, 1,
-    right_receive[2].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[3].data(), Ny * Nz, MPI_DOUBLE, left, 1,
-    right_receive[3].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[4].data(), Ny * Nz, MPI_DOUBLE, left, 1,
-    right_receive[4].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(left_send[5].data(), Ny * Nz, MPI_DOUBLE, left, 1,
-    right_receive[5].data(), Ny * Nz, MPI_DOUBLE, right, 1, cart_comm, MPI_STATUS_IGNORE);
+  // std::cout << "IM here 1" << std::endl;
 
-  // Записываем данные из вектора приёма в поля
-  for (int64_t y = 0; y < Ny; ++y) {
-    for (int64_t z = 0; z < Nz; ++z) {
-      Ex(Nx, y, z) = right_receive[0][y * Nz + z]; // Ex
-      Ey(Nx, y, z) = right_receive[1][y * Nz + z]; // Ey
-      Ez(Nx, y, z) = right_receive[2][y * Nz + z]; // Ez
-      Bx(Nx, y, z) = right_receive[3][y * Nz + z]; // Bx
-      By(Nx, y, z) = right_receive[4][y * Nz + z]; // By
-      Bz(Nx, y, z) = right_receive[5][y * Nz + z]; // Bz
-    }
-  }
-  
   // 2 ПУНКТ ---------------------------------------------------
   // Векторы для отправки и приёма правой грани
-  std::vector<std::vector<double>> right_send(6, std::vector<double>(Ny * Nz, 0.0));
-  std::vector<std::vector<double>> left_receive(6, std::vector<double>(Ny * Nz, 0.0));
+  // Ссылка на уже инициализированную память
+  std::vector<double> &right_send = left_send;
+  std::vector<double> &left_receive = right_receive;
 
   // Заполняем векторы данными для отправки
+  #pragma omp parallel for collapse(2)
   for (int64_t y = 0; y < Ny; ++y) {
     for (int64_t z = 0; z < Nz; ++z) {
       int index = y * Nz + z;
-      right_send[0][index] = Ex(Nx - 1, y, z); // Ex
-      right_send[1][index] = Ey(Nx - 1, y, z); // Ey
-      right_send[2][index] = Ez(Nx - 1, y, z); // Ez
-      right_send[3][index] = Bx(Nx - 1, y, z); // Bx
-      right_send[4][index] = By(Nx - 1, y, z); // By
-      right_send[5][index] = Bz(Nx - 1, y, z); // Bz
+      right_send[index] = Ex(Nx - 1, y, z); // Ex
+      right_send[index + (Ny * Nz) * 1] = Ey(Nx - 1, y, z); // Ey
+      right_send[index + (Ny * Nz) * 2] = Ez(Nx - 1, y, z); // Ez
+      right_send[index + (Ny * Nz) * 3] = Bx(Nx - 1, y, z); // Bx
+      right_send[index + (Ny * Nz) * 4] = By(Nx - 1, y, z); // By
+      right_send[index + (Ny * Nz) * 5] = Bz(Nx - 1, y, z); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(right_send[0].data(), Ny * Nz, MPI_DOUBLE, right, 2,
-    left_receive[0].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[1].data(), Ny * Nz, MPI_DOUBLE, right, 2,
-    left_receive[1].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[2].data(), Ny * Nz, MPI_DOUBLE, right, 2,
-    left_receive[2].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[3].data(), Ny * Nz, MPI_DOUBLE, right, 2,
-    left_receive[3].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[4].data(), Ny * Nz, MPI_DOUBLE, right, 2,
-    left_receive[4].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(right_send[5].data(), Ny * Nz, MPI_DOUBLE, right, 2,
-    left_receive[5].data(), Ny * Nz, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(right_send.data(), Ny * Nz * 6, MPI_DOUBLE, right, 2,
+    left_receive.data(), Ny * Nz * 6, MPI_DOUBLE, left, 2, cart_comm, MPI_STATUS_IGNORE);
 
   // Записываем данные из вектора приёма в поля
+  #pragma omp parallel for collapse(2)
   for (int64_t y = 0; y < Ny; ++y) {
     for (int64_t z = 0; z < Nz; ++z) {
-      Ex(-1, y, z) = left_receive[0][y * Nz + z]; // Ex
-      Ey(-1, y, z) = left_receive[1][y * Nz + z]; // Ey
-      Ez(-1, y, z) = left_receive[2][y * Nz + z]; // Ez
-      Bx(-1, y, z) = left_receive[3][y * Nz + z]; // Bx
-      By(-1, y, z) = left_receive[4][y * Nz + z]; // By
-      Bz(-1, y, z) = left_receive[5][y * Nz + z]; // Bz
+      int index = y * Nz + z;
+      Ex(-1, y, z) = left_receive[index];                 // Ex
+      Ey(-1, y, z) = left_receive[index + (Ny * Nz) * 1]; // Ey
+      Ez(-1, y, z) = left_receive[index + (Ny * Nz) * 2]; // Ez
+      Bx(-1, y, z) = left_receive[index + (Ny * Nz) * 3]; // Bx
+      By(-1, y, z) = left_receive[index + (Ny * Nz) * 4]; // By
+      Bz(-1, y, z) = left_receive[index + (Ny * Nz) * 5]; // Bz
     }
   }
   
+  // std::cout << "IM here 2" << std::endl;
   // 3 ПУНКТ ---------------------------------------------------
   // Векторы для отправки и приёма дальней грани
-  std::vector<std::vector<double>> back_send(6, std::vector<double>((Nx + 2) * Nz, 0.0));
-  std::vector<std::vector<double>> front_receive(6, std::vector<double>((Nx + 2) * Nz, 0.0));
+  // std::vector<std::vector<double>> back_send(6, std::vector<double>((Nx + 2) * Nz, 0.0));
+  // std::vector<std::vector<double>> front_receive(6, std::vector<double>((Nx + 2) * Nz, 0.0));
+  
+  // Ссылка на уже инициализированную память
+  std::vector<double> &back_send = left_send;
+  std::vector<double> &front_receive = right_receive;
+
+  back_send.resize((Nx + 2) * Nz * 6);
+  front_receive.resize((Nx + 2) * Nz * 6);
 
   // Заполняем векторы данными для отправки
+  #pragma omp parallel for collapse(2)
   for (int64_t x = -1; x < Nx + 1; ++x) {
     for (int64_t z = 0; z < Nz; ++z) {
       int index = (x + 1) * Nz + z;
-      back_send[0][index] = Ex(x, Ny - 1, z); // Ex
-      back_send[1][index] = Ey(x, Ny - 1, z); // Ey
-      back_send[2][index] = Ez(x, Ny - 1, z); // Ez
-      back_send[3][index] = Bx(x, Ny - 1, z); // Bx
-      back_send[4][index] = By(x, Ny - 1, z); // By
-      back_send[5][index] = Bz(x, Ny - 1, z); // Bz
+      back_send[index] = Ex(x, Ny - 1, z); // Ex
+      back_send[index + (Nx + 2) * Nz * 1] = Ey(x, Ny - 1, z); // Ey
+      back_send[index + (Nx + 2) * Nz * 2] = Ez(x, Ny - 1, z); // Ez
+      back_send[index + (Nx + 2) * Nz * 3] = Bx(x, Ny - 1, z); // Bx
+      back_send[index + (Nx + 2) * Nz * 4] = By(x, Ny - 1, z); // By
+      back_send[index + (Nx + 2) * Nz * 5] = Bz(x, Ny - 1, z); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(back_send[0].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
-    front_receive[0].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[1].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
-    front_receive[1].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[2].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
-    front_receive[2].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[3].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
-    front_receive[3].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[4].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
-    front_receive[4].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(back_send[5].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 3,
-    front_receive[5].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(back_send.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE, back, 3,
+    front_receive.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
 
   // Записываем данные из вектора приёма в поля
+  #pragma omp parallel for collapse(2)
   for (int64_t x = -1; x < Nx + 1; ++x) {
     for (int64_t z = 0; z < Nz; ++z) {
-      Ex(x, -1, z) = front_receive[0][(x + 1) * Nz + z]; // Ex
-      Ey(x, -1, z) = front_receive[1][(x + 1) * Nz + z]; // Ey
-      Ez(x, -1, z) = front_receive[2][(x + 1) * Nz + z]; // Ez
-      Bx(x, -1, z) = front_receive[3][(x + 1) * Nz + z]; // Bx
-      By(x, -1, z) = front_receive[4][(x + 1) * Nz + z]; // By
-      Bz(x, -1, z) = front_receive[5][(x + 1) * Nz + z]; // Bz
+      int index = (x + 1) * Nz + z;
+      Ex(x, -1, z) = front_receive[index]; // Ex
+      Ey(x, -1, z) = front_receive[index + (Nx + 2) * Nz * 1]; // Ey
+      Ez(x, -1, z) = front_receive[index + (Nx + 2) * Nz * 2]; // Ez
+      Bx(x, -1, z) = front_receive[index + (Nx + 2) * Nz * 3]; // Bx
+      By(x, -1, z) = front_receive[index + (Nx + 2) * Nz * 4]; // By
+      Bz(x, -1, z) = front_receive[index + (Nx + 2) * Nz * 5]; // Bz
     }
   }
+  // std::cout << "IM here 3" << std::endl;
 
   // 4 ПУНКТ ---------------------------------------------------
   // Векторы для отправки и приёма ближней грани
-  std::vector<std::vector<double>> front_send(6, std::vector<double>((Nx + 2) * Nz, 0.0));
-  std::vector<std::vector<double>> back_receive(6, std::vector<double>((Nx + 2) * Nz, 0.0));
+  // std::vector<std::vector<double>> front_send(6, std::vector<double>((Nx + 2) * Nz, 0.0));
+  // std::vector<std::vector<double>> back_receive(6, std::vector<double>((Nx + 2) * Nz, 0.0));
+
+  // Ссылка на уже инициализированную память
+  std::vector<double> &front_send = left_send;
+  std::vector<double> &back_receive = right_receive;
 
   // Заполняем векторы данными для отправки
+  #pragma omp parallel for collapse(2)
   for (int64_t x = -1; x < Nx + 1; ++x) {
     for (int64_t z = 0; z < Nz; ++z) {
       int index = (x + 1) * Nz + z;
-      front_send[0][index] = Ex(x, 0, z); // Ex
-      front_send[1][index] = Ey(x, 0, z); // Ey
-      front_send[2][index] = Ez(x, 0, z); // Ez
-      front_send[3][index] = Bx(x, 0, z); // Bx
-      front_send[4][index] = By(x, 0, z); // By
-      front_send[5][index] = Bz(x, 0, z); // Bz
+      front_send[index] = Ex(x, 0, z); // Ex
+      front_send[index + (Nx + 2) * Nz * 1] = Ey(x, 0, z); // Ey
+      front_send[index + (Nx + 2) * Nz * 2] = Ez(x, 0, z); // Ez
+      front_send[index + (Nx + 2) * Nz * 3] = Bx(x, 0, z); // Bx
+      front_send[index + (Nx + 2) * Nz * 4] = By(x, 0, z); // By
+      front_send[index + (Nx + 2) * Nz * 5] = Bz(x, 0, z); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(front_send[0].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
-    back_receive[0].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[1].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
-    back_receive[1].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[2].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
-    back_receive[2].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[3].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
-    back_receive[3].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[4].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
-    back_receive[4].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(front_send[5].data(), (Nx + 2) * Nz, MPI_DOUBLE, front, 4,
-    back_receive[5].data(), (Nx + 2) * Nz, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(front_send.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE, front, 4,
+    back_receive.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
 
   // Записываем данные из вектора приёма в поля
+  #pragma omp parallel for collapse(2)
   for (int64_t x = -1; x < Nx + 1; ++x) {
     for (int64_t z = 0; z < Nz; ++z) {
-      Ex(x, Ny, z) = back_receive[0][(x + 1) * Nz + z]; // Ex
-      Ey(x, Ny, z) = back_receive[1][(x + 1) * Nz + z]; // Ey
-      Ez(x, Ny, z) = back_receive[2][(x + 1) * Nz + z]; // Ez
-      Bx(x, Ny, z) = back_receive[3][(x + 1) * Nz + z]; // Bx
-      By(x, Ny, z) = back_receive[4][(x + 1) * Nz + z]; // By
-      Bz(x, Ny, z) = back_receive[5][(x + 1) * Nz + z]; // Bz
+      int index = (x + 1) * Nz + z;
+      Ex(x, Ny, z) = back_receive[index]; // Ex
+      Ey(x, Ny, z) = back_receive[index + (Nx + 2) * Nz * 1]; // Ey
+      Ez(x, Ny, z) = back_receive[index + (Nx + 2) * Nz * 2]; // Ez
+      Bx(x, Ny, z) = back_receive[index + (Nx + 2) * Nz * 3]; // Bx
+      By(x, Ny, z) = back_receive[index + (Nx + 2) * Nz * 4]; // By
+      Bz(x, Ny, z) = back_receive[index + (Nx + 2) * Nz * 5]; // Bz
     }
   }
+  // std::cout << "IM here 4" << std::endl;
 
   // Предполагаю, что здесь нужна синхронизация, что отправка верха или низа не началась раньше принятия боков.
   MPI_Barrier(cart_comm);
 
   // 5 ПУНКТ ---------------------------------------------------
   // Векторы для отправки и приёма верхней грани
-  std::vector<std::vector<double>> up_send(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
-  std::vector<std::vector<double>> down_receive(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+  // std::vector<std::vector<double>> up_send(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+  // std::vector<std::vector<double>> down_receive(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
 
+  // Ссылка на уже инициализированную память
+  std::vector<double> &up_send = left_send;
+  std::vector<double> &down_receive = right_receive;
+
+  up_send.resize((Nx + 2) * (Ny + 2) * 6);
+  down_receive.resize((Nx + 2) * (Ny + 2) * 6);
+  
   // Заполняем векторы данными для отправки
+  #pragma omp parallel for collapse(2)
   for (int64_t x = -1; x < Nx + 1; ++x) {
     for (int64_t y = -1; y < Ny + 1; ++y) {
       int index = (x + 1) * (Ny + 2) + y + 1;
-      up_send[0][index] = Ex(x, y, Nz - 1); // Ex
-      up_send[1][index] = Ey(x, y, Nz - 1); // Ey
-      up_send[2][index] = Ez(x, y, Nz - 1); // Ez
-      up_send[3][index] = Bx(x, y, Nz - 1); // Bx
-      up_send[4][index] = By(x, y, Nz - 1); // By
-      up_send[5][index] = Bz(x, y, Nz - 1); // Bz
+      up_send[index] = Ex(x, y, Nz - 1); // Ex
+      up_send[index + (Nx + 2) * (Ny + 2) * 1] = Ey(x, y, Nz - 1); // Ey
+      up_send[index + (Nx + 2) * (Ny + 2) * 2] = Ez(x, y, Nz - 1); // Ez
+      up_send[index + (Nx + 2) * (Ny + 2) * 3] = Bx(x, y, Nz - 1); // Bx
+      up_send[index + (Nx + 2) * (Ny + 2) * 4] = By(x, y, Nz - 1); // By
+      up_send[index + (Nx + 2) * (Ny + 2) * 5] = Bz(x, y, Nz - 1); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(up_send[0].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    down_receive[0].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(up_send[1].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    down_receive[1].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(up_send[2].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    down_receive[2].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(up_send[3].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    down_receive[3].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(up_send[4].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    down_receive[4].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(up_send[5].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 5,
-    down_receive[5].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(up_send.data(), (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE, up, 5,
+    down_receive.data(), (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
 
   // Записываем данные из вектора приёма в поля
+  #pragma omp parallel for collapse(2)
   for (int64_t x = -1; x < Nx + 1; ++x) {
     for (int64_t y = -1; y < Ny + 1; ++y) {
-      Ex(x, y, -1) = down_receive[0][(x + 1) * (Ny + 2) + y + 1]; // Ex
-      Ey(x, y, -1) = down_receive[1][(x + 1) * (Ny + 2) + y + 1]; // Ey
-      Ez(x, y, -1) = down_receive[2][(x + 1) * (Ny + 2) + y + 1]; // Ez
-      Bx(x, y, -1) = down_receive[3][(x + 1) * (Ny + 2) + y + 1]; // Bx
-      By(x, y, -1) = down_receive[4][(x + 1) * (Ny + 2) + y + 1]; // By
-      Bz(x, y, -1) = down_receive[5][(x + 1) * (Ny + 2) + y + 1]; // Bz
+      int index = (x + 1) * (Ny + 2) + y + 1;
+      Ex(x, y, -1) = down_receive[index]; // Ex
+      Ey(x, y, -1) = down_receive[index + (Nx + 2) * (Ny + 2) * 1]; // Ey
+      Ez(x, y, -1) = down_receive[index + (Nx + 2) * (Ny + 2) * 2]; // Ez
+      Bx(x, y, -1) = down_receive[index + (Nx + 2) * (Ny + 2) * 3]; // Bx
+      By(x, y, -1) = down_receive[index + (Nx + 2) * (Ny + 2) * 4]; // By
+      Bz(x, y, -1) = down_receive[index + (Nx + 2) * (Ny + 2) * 5]; // Bz
     }
   }
+  // std::cout << "IM here 5" << std::endl;
 
   // 6 ПУНКТ ---------------------------------------------------
   // Векторы для отправки и приёма нижней грани
-  std::vector<std::vector<double>> down_send(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
-  std::vector<std::vector<double>> up_receive(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+  // std::vector<std::vector<double>> down_send(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+  // std::vector<std::vector<double>> up_receive(6, std::vector<double>((Nx + 2) * (Ny + 2), 0.0));
+
+  // Ссылка на уже инициализированную память
+  std::vector<double> &down_send = left_send;
+  std::vector<double> &up_receive = right_receive;
 
   // Заполняем векторы данными для отправки
+  #pragma omp parallel for collapse(2)
   for (int64_t x = -1; x < Nx + 1; ++x) {
     for (int64_t y = -1; y < Ny + 1; ++y) {
       int index = (x + 1) * (Ny + 2) + y + 1;
-      down_send[0][index] = Ex(x, y, 0); // Ex
-      down_send[1][index] = Ey(x, y, 0); // Ey
-      down_send[2][index] = Ez(x, y, 0); // Ez
-      down_send[3][index] = Bx(x, y, 0); // Bx
-      down_send[4][index] = By(x, y, 0); // By
-      down_send[5][index] = Bz(x, y, 0); // Bz
+      down_send[index] = Ex(x, y, 0); // Ex
+      down_send[index + (Nx + 2) * (Ny + 2) * 1] = Ey(x, y, 0); // Ey
+      down_send[index + (Nx + 2) * (Ny + 2) * 2] = Ez(x, y, 0); // Ez
+      down_send[index + (Nx + 2) * (Ny + 2) * 3] = Bx(x, y, 0); // Bx
+      down_send[index + (Nx + 2) * (Ny + 2) * 4] = By(x, y, 0); // By
+      down_send[index + (Nx + 2) * (Ny + 2) * 5] = Bz(x, y, 0); // Bz
     }
   }
 
   // Отправляем и получаем данные
-  MPI_Sendrecv(down_send[0].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    up_receive[0].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(down_send[1].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    up_receive[1].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(down_send[2].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    up_receive[2].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(down_send[3].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    up_receive[3].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(down_send[4].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    up_receive[4].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
-  MPI_Sendrecv(down_send[5].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, down, 6,
-    up_receive[5].data(), (Nx + 2) * (Ny + 2), MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
+  MPI_Sendrecv(down_send.data(), (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE, down, 6,
+    up_receive.data(), (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE, up, 6, cart_comm, MPI_STATUS_IGNORE);
 
   // Записываем данные из вектора приёма в поля
+  #pragma omp parallel for collapse(2)
   for (int64_t x = -1; x < Nx + 1; ++x) {
     for (int64_t y = -1; y < Ny + 1; ++y) {
-      Ex(x, y, Nz) = up_receive[0][(x + 1) * (Ny + 2) + y + 1]; // Ex
-      Ey(x, y, Nz) = up_receive[1][(x + 1) * (Ny + 2) + y + 1]; // Ey
-      Ez(x, y, Nz) = up_receive[2][(x + 1) * (Ny + 2) + y + 1]; // Ez
-      Bx(x, y, Nz) = up_receive[3][(x + 1) * (Ny + 2) + y + 1]; // Bx
-      By(x, y, Nz) = up_receive[4][(x + 1) * (Ny + 2) + y + 1]; // By
-      Bz(x, y, Nz) = up_receive[5][(x + 1) * (Ny + 2) + y + 1]; // Bz
+      int index = (x + 1) * (Ny + 2) + y + 1;
+      Ex(x, y, Nz) = up_receive[index]; // Ex
+      Ey(x, y, Nz) = up_receive[index + (Nx + 2) * (Ny + 2) * 1]; // Ey
+      Ez(x, y, Nz) = up_receive[index + (Nx + 2) * (Ny + 2) * 2]; // Ez
+      Bx(x, y, Nz) = up_receive[index + (Nx + 2) * (Ny + 2) * 3]; // Bx
+      By(x, y, Nz) = up_receive[index + (Nx + 2) * (Ny + 2) * 4]; // By
+      Bz(x, y, Nz) = up_receive[index + (Nx + 2) * (Ny + 2) * 5]; // Bz
     }
   }
+  // std::cout << "IM here 6" << std::endl;
 
   
 

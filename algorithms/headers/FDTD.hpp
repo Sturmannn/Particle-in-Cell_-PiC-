@@ -105,4 +105,4 @@ private:
 
 } // namespace FDTD
 
-#endif // !__FDTD_HPP__
+#endif // __FDTD__HPP
