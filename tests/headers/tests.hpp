@@ -96,7 +96,7 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   // При изменении размеров сетки, не забыть изменить и размеры поддомена
   int MPI_dimension = 3;
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {64, 64, 64};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 16};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   std::tuple<double, double, double> dx_dy_dz = 
@@ -108,11 +108,12 @@ TEST(Test_version_comparison, shifted_OZ) {
   //   std::get<2>(dx_dy_dz) = 0.0;
   // }
   // double dt = 2e-15;
-  omp_set_num_threads(1);
+  // omp_set_num_threads(3);
   printf("Max threads num: %d\n", omp_get_max_threads());
+  int thread_num = 0;
   #pragma omp parallel
   {
-    int thread_num = omp_get_thread_num();
+    thread_num = omp_get_thread_num();
     printf("Hello from thread %d\n", thread_num);
     if (omp_get_num_threads() == 0) {
       printf("Number of threads: %d\n", omp_get_num_threads());
@@ -135,7 +136,12 @@ TEST(Test_version_comparison, shifted_OZ) {
   Component B = Component::By;
   Shift shift = Shift::shifted;
   
-  if (rank == 0) std::cout << "Axis: " << FDTD::FDTD::axisToString(E, B) << std::endl;
+  if (rank == 0) {
+    std::cout << "Nx = " << std::get<0>(Nx_Ny_Nz) << std::endl << \
+      "Ny = "<< std::get<1>(Nx_Ny_Nz) << std::endl << \
+      "Nz = " << std::get<2>(Nx_Ny_Nz) << std::endl;
+    std::cout << "Axis: " << FDTD::FDTD::axisToString(E, B) << std::endl;
+  }
 
 
 // =========================================================
@@ -158,10 +164,14 @@ TEST(Test_version_comparison, shifted_OZ) {
   if (rank == 0) {
     std::cout << "Elapsed time: " << elapsed_time << " seconds" << std::endl;
     
+    std::vector<int> dims = test.get_dims();
     std::ofstream measure_file;
+    
     measure_file.open(path_to_measurements_file, std::ios::app);
     if (measure_file.is_open()) {
-      measure_file << elapsed_time << std::endl;
+      // Здесь только для 3D для замеров времени
+      measure_file << elapsed_time << '\t' << omp_get_max_threads() << '\t' << world_size << "\t" <<
+        dims[0] << '\t' << dims[1] << '\t' << dims[2] << std::endl;
     }
     else {
       std::cerr << "The file for measurements can't be opened" << std::endl;

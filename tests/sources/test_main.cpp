@@ -1,8 +1,11 @@
 #include <mpi.h>
 #include "gtest.h"
+#include <set>
 
 int main(int argc, char** argv) {
 
+  std::set<int> set;
+  set.insert(2)
   // const int matrix_size = 4;
 
   // int matrix[matrix_size][matrix_size][matrix_size];
