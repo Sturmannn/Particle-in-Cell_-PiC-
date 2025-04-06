@@ -15,6 +15,8 @@ constexpr const char *path_to_measurements_file = PATH_TO_MEASUREMENTS_FILE;
 
 namespace gtest {
 
+extern int arg_Nx, arg_Ny, arg_Nz;
+
 enum class Shift { shifted, unshifted };
 
 class Test_obj {
@@ -96,7 +98,7 @@ TEST(Test_version_comparison, shifted_OZ) {
 
   // При изменении размеров сетки, не забыть изменить и размеры поддомена
   int MPI_dimension = 3;
-  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {16, 16, 16};
+  std::tuple<int64_t, int64_t, int64_t> Nx_Ny_Nz = {gtest::arg_Nx, gtest::arg_Ny, gtest::arg_Nz};
   std::tuple<double, double, double> ax_ay_az = {0.0, 0.0, 0.0};
   std::tuple<double, double, double> bx_by_bz = {1.0, 1.0, 1.0};
   std::tuple<double, double, double> dx_dy_dz = 
@@ -171,7 +173,8 @@ TEST(Test_version_comparison, shifted_OZ) {
     if (measure_file.is_open()) {
       // Здесь только для 3D для замеров времени
       measure_file << elapsed_time << '\t' << omp_get_max_threads() << '\t' << world_size << "\t" <<
-        dims[0] << '\t' << dims[1] << '\t' << dims[2] << std::endl;
+        dims[0] << '\t' << dims[1] << '\t' << dims[2] << '\t' << gtest::arg_Nx  << '\t' <<
+          gtest::arg_Ny << '\t' << gtest::arg_Nz << std::endl;
     }
     else {
       std::cerr << "The file for measurements can't be opened" << std::endl;
@@ -182,15 +185,6 @@ TEST(Test_version_comparison, shifted_OZ) {
   Field::ComputingField::clear_files(path_to_calculated_data_directory);
   Field::ComputingField::clear_files(path_to_analytical_data_directory);
   
-  // MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  //   for (int64_t a = 0; a < field.get_Nx(); ++a)
-  //     for (int64_t b = 0; b < field.get_Ny(); ++b)
-  //       for (int64_t c = 0; c < field.get_Nz(); ++c)
-  //       {
-  //         if (  test.get_field().get_Ey()(a, b, c) != 0.0) {
-  //           std::cout << "Process " << rank << " Ey: " << test.get_field().get_Ey()(a, b, c) << std::endl;
-  //         }
-  //       }
 
   // Поскольку MPI разбиение на данный момент только по OY, то в python скрипте для графиков происходит сбор всех данных \
   с соответствующих процессов. Поэтому, при запуске на OX, данные дублируются в графиках

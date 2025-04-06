@@ -29,11 +29,11 @@ path_to_bin_file = os.path.join(current_dir, "bin", "Tests")
 print('Путь до исполняемого файла -', path_to_bin_file)
 
 num_threads = 1
-num_runs = 5 # Количество итераций запуска программы для подсчёта времени работы
+num_runs = 2 # Количество итераций запуска программы для подсчёта времени работы
 ntasks_per_node = 1 # Число процессов на узел
 num_clusters = 1 # Число узлов
 np = num_clusters * num_clusters # Общее число процессов
-t = 20 # Лимит на выполнение задачи
+t = 200 # Лимит на выполнение задачи
 
 # while True:
 #     try:
@@ -57,10 +57,12 @@ t = 20 # Лимит на выполнение задачи
 #           .format(_time, _ntasks_per_node, _num_clusters, _OMP_NUM_THREADS, _ntasks_per_node * _num_clusters, _path_to_bin_file)
 #     return sbatch_command
 
-def call_sbatch(_time, _ntasks_per_node, _num_clusters, _path_to_bin_file, _OMP_NUM_THREADS=1):
+def call_sbatch(_time, _ntasks_per_node, _num_clusters, _path_to_bin_file, _domain_size,  _OMP_NUM_THREADS=1):
     sbatch_command = 'sbatch -v -t {} -p gpu --ntasks-per-node {} -N {} \
-          --wrap="export OMP_NUM_THREADS={}; mpiexec -n {} {}"' \
-          .format(_time, _ntasks_per_node, _num_clusters, _OMP_NUM_THREADS, _ntasks_per_node * _num_clusters, _path_to_bin_file)
+          --wrap="export OMP_NUM_THREADS={}; mpiexec -n {} {} --Nx {} --Ny {} --Nz {}"' \
+          .format(_time, _ntasks_per_node, _num_clusters, \
+                    _OMP_NUM_THREADS, _ntasks_per_node * _num_clusters, \
+                    _path_to_bin_file, _domain_size, _domain_size, _domain_size)
     return sbatch_command
 
 
@@ -71,24 +73,26 @@ def call_sbatch(_time, _ntasks_per_node, _num_clusters, _path_to_bin_file, _OMP_
 # print(f'sbatch -v -t {t} -p gpu --ntasks-per-node {ntasks_per_node} -N {num_clusters} --wrap="mpiexec -np {np} {path_to_bin_file}"')
 
 
-
-# thread_list = [1, 2, 4, 8, 16]
-thread_list = [16, 16, 16, 16, 16]
-# proc_list = [16, 8, 4, 2, 1]
-proc_list = [1, 1, 1, 1, 1]
+domain_sizes = [32]
+thread_list = [1, 2, 4, 8, 16]
+# thread_list = [1, 1, 1, 1, 1]
+proc_list = [16, 8, 4, 2, 1]
+# proc_list = [2, 2, 2, 2, 2]
 
 
 # for index in range(len(thread_list)):
-for i in range(num_runs):
-    print('Запуск #{}'.format(i))
-    try:
-        # subprocess.run(call_sbatch(t, proc_list[index], num_clusters, path_to_bin_file, thread_list[index]), \
-        #                 shell=True, check=True)
-        subprocess.run(call_sbatch(t, proc_list[i], num_clusters, path_to_bin_file, thread_list[i]), \
-                shell=True, check=True)
-        # time.sleep(10)
-    except subprocess.SubprocessError as er:
-        print('Запуск скрипта выполнен с ошибкой: {}'.format(er))
+for sizes in range(len(domain_sizes)):
+    for count in range(num_runs):
+        for i in range(len(proc_list)):
+            print('Запуск #{}'.format(i))
+            try:
+                # subprocess.run(call_sbatch(t, proc_list[index], num_clusters, path_to_bin_file, thread_list[index]), \
+                #                 shell=True, check=True)
+                subprocess.run(call_sbatch(t, proc_list[i], num_clusters, path_to_bin_file, domain_sizes[sizes], thread_list[i]), \
+                        shell=True, check=True)
+                time.sleep(2)
+            except subprocess.SubprocessError as er:
+                print('Запуск скрипта выполнен с ошибкой: {}'.format(er))
         
 
 
