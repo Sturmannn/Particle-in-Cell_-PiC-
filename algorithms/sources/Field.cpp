@@ -189,7 +189,8 @@ void Field::ComputingField::write_field_to_file(const char* path, const int64_t 
   case Axis::Ox:
     check_index(index, Ny);
     for (int64_t i = 0; i < Nx; ++i)
-      outfile << this->operator()(i, index, -1) << (i < Nx - 1 ? ';' : '\n'); // Меняю с (i, index, 0) на (i, index, -1)
+      // outfile << this->operator()(i, index, -1) << (i < Nx - 1 ? ';' : '\n'); // Меняю с (i, index, 0) на (i, index, -1)
+      outfile << this->operator()(i, index, 1) << (i < Nx - 1 ? ';' : '\n'); // Меняю с (i, index, 0) на (i, index, -1)
     break;
   case Axis::Oy:
     check_index(index, Nx);

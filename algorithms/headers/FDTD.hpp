@@ -10,8 +10,6 @@
 
 #include "Field.hpp"
 
-//#define MPI
-
 constexpr double PI = 3.14159265358979323846;
 constexpr double C = 29979245800.0; // speed of light (CGS)
 
@@ -107,4 +105,4 @@ private:
 
 } // namespace FDTD
 
-#endif // !__FDTD_HPP__
+#endif // __FDTD__HPP
