@@ -22,26 +22,24 @@ add_definitions(-DPATH_TO_CONVERGENCE_DATA="${PATH_TO_CONVERGENCE_DATA}")
 add_definitions(-DPATH_TO_CALCULATED_DATA_DIRECTORY="${PATH_TO_CALCULATED_DATA_DIRECTORY}")
 add_definitions(-DPATH_TO_ANALYTICAL_DATA_DIRECTORY="${PATH_TO_ANALYTICAL_DATA_DIRECTORY}")
 add_definitions(-DPATH_TO_MEASUREMENTS_FILE="${PATH_TO_MEASUREMENTS_FILE}")
-# add_definitions(-DPATH_TO_CALCULATED_DATA="${PATH_TO_CALCULATED_DATA}")
-# add_definitions(-DPATH_TO_ANALYTICAL_DATA="${PATH_TO_ANALYTICAL_DATA}")
 
 
-set(TEST_LIB GTestLib)
+# set(TEST_LIB GTestLib)
 set(TEST_TARGET_NAME Tests)
 set(ALG_TARGET_NAME Algorithms)
 
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/GTestLib/headers)
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/googletest/include)
+# include_directories(${CMAKE_CURRENT_SOURCE_DIR}/GTestLib/headers)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/algorithms/headers)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Tests/headers)
 
-find_package(OpenMP REQUIRED)
-if(OpenMP_CXX_FOUND)
-    message(STATUS "OpenMP C++ FOUND - ${OpenMP_CXX_VERSION}")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-else()
-    message(WARNING "OpenMP NOT found")
-endif()
+# find_package(OpenMP REQUIRED)
+# if(OpenMP_CXX_FOUND)
+#     message(STATUS "OpenMP C++ FOUND - ${OpenMP_CXX_VERSION}")
+#     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+# else()
+#     message(WARNING "OpenMP NOT found")
+# endif()
 
 # Подключение MPI
 find_package(MPI)
@@ -63,7 +61,11 @@ else()
 endif()
 
 
-add_subdirectory(GTestLib)
+# add_subdirectory(GTestLib)
+
+option(BUILD_GMOCK "Build gmock" OFF)
+add_subdirectory(3rdparty/googletest)
+
 add_subdirectory(algorithms)
 add_subdirectory(tests)
 

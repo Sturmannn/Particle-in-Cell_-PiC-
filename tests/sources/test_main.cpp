@@ -1,5 +1,5 @@
 #include <mpi.h>
-#include "gtest.h"
+#include <gtest/gtest.h>
 // #include "tests.hpp"
 #include <set>
 

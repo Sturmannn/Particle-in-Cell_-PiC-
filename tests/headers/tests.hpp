@@ -4,7 +4,7 @@
 #include <functional>
 #include <fstream>
 #include "FDTD.hpp"
-#include "gtest.h"
+#include <gtest/gtest.h>
 #include <omp.h>
 
 
