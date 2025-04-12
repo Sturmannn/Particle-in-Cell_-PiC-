@@ -341,25 +341,26 @@ void FDTD::FDTD::shifted_field_update(const int64_t t, MPI_Comm cart_comm) {
       {
         // std::cout << "Hello from " << omp_get_thread_num() << std::endl;
 // #pragma omp for collapse(3)
-#pragma omp parallel for private(i, j, k) collapse(2)
-        for (i = 0; i < Nx; ++i)
-          for (j = 0; j < Ny; ++j)
-#pragma omp simd
-            for (k = k_value; k < _Nz; ++k) {
-              Bx(i, j, k) =
-                  Bx(i, j, k) + C * B_dt *
-                                    ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz -
-                                     (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
+// #pragma omp parallel for collapse(2)
+        for (int64_t k = k_value; k < _Nz; ++k) 
+          for (int64_t i = 0; i < Nx; ++i)
+          #pragma omp simd
+            for (int64_t j = 0; j < Ny; ++j) {
+              Bx.get_field()[j * i * k + j * i + i] +=  C * B_dt;
+              // Bx(i, j, k) =
+              //     Bx(i, j, k) + C * B_dt *
+              //                       ((Ey(i, j, k + 1) - Ey(i, j, k)) / dz -
+              //                        (Ez(i, j + 1, k) - Ez(i, j, k)) / dy);
 
-              By(i, j, k) =
-                  By(i, j, k) + C * B_dt *
-                                    ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx -
-                                     (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
+              // By(i, j, k) =
+              //     By(i, j, k) + C * B_dt *
+              //                       ((Ez(i + 1, j, k) - Ez(i, j, k)) / dx -
+              //                        (Ex(i, j, k + 1) - Ex(i, j, k)) / dz);
 
-              Bz(i, j, k) =
-                  Bz(i, j, k) + C * B_dt *
-                                    ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
-                                     (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
+              // Bz(i, j, k) =
+              //     Bz(i, j, k) + C * B_dt *
+              //                       ((Ex(i, j + 1, k) - Ex(i, j, k)) / dy -
+              //                        (Ey(i + 1, j, k) - Ey(i, j, k)) / dx);
             }
         boundary_synchronization_3D(cart_comm);
 // #pragma omp for collapse(3)

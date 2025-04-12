@@ -7,7 +7,7 @@
     "configurePresets": [
       {
         "name": "clang-debug",
-        "description": "Preset for building with Clang in Debug mode with OpenMP support and Visual Studio 17 2022",
+        "description": "Preset for building with Clang in Debug mode with OpenMP support",
         "generator": "Ninja",
         "binaryDir": "${sourceDir}/build/",
         "cacheVariables": {
@@ -16,12 +16,12 @@
           "CMAKE_LINKER": "lld",
           "CMAKE_COLOR_DIAGNOSTICS": "ON",
           "CMAKE_BUILD_TYPE": "Debug",
-          "CMAKE_CXX_FLAGS": "-O3 -fopenmp"
+          "CMAKE_CXX_FLAGS": "-fopenmp -g"
         }
       },
       {
         "name": "clang-release",
-        "description": "Preset for building with Clang in Release mode with OpenMP support and Visual Studio 17 2022",
+        "description": "Preset for building with Clang in Release mode with OpenMP support",
         "generator": "Ninja",
         "binaryDir": "${sourceDir}/build/",
         "cacheVariables": {
@@ -30,12 +30,12 @@
           "CMAKE_LINKER": "lld",
           "CMAKE_COLOR_DIAGNOSTICS": "ON",
           "CMAKE_BUILD_TYPE": "Release",
-          "CMAKE_CXX_FLAGS": "-O2 -g -fopenmp"
+          "CMAKE_CXX_FLAGS": "-fopenmp"
         }
       },
       {
         "name": "clang-rel_with_deb_inf",
-        "description": "Preset for building with Clang in RelWithDebInfo mode with OpenMP support and Visual Studio 17 2022",
+        "description": "Preset for building with Clang in RelWithDebInfo mode with OpenMP support",
         "generator": "Ninja",
         "binaryDir": "${sourceDir}/build/",
         "cacheVariables": {
@@ -44,7 +44,7 @@
           "CMAKE_LINKER": "lld",
           "CMAKE_COLOR_DIAGNOSTICS": "ON",
           "CMAKE_BUILD_TYPE": "RelWithDebInfo",
-          "CMAKE_CXX_FLAGS": "-O0 -fopenmp"
+          "CMAKE_CXX_FLAGS": "-fopenmp -g -O3"
         }
       }
     ]
