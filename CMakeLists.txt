@@ -34,7 +34,7 @@ else()
 endif()
 
 # MPI
-find_package(MPI)
+find_package(MPI REQUIRED)
 if (MPI_CXX_FOUND)
     message(STATUS "MPI C++ FOUND - ${MPI_CXX_VERSION}")
 else()
@@ -70,3 +70,9 @@ add_subdirectory(tests)
 message(STATUS "Using compiler: " ${CMAKE_CXX_COMPILER_ID})
 message(STATUS "CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS})
 message(STATUS "Build type: " ${CMAKE_BUILD_TYPE})
+
+# ---------------------------------------------------------------------
+set (FDTD_LIB "FDTD_LIB")
+set (FDTD_SAMPLE "SampleFDTD")
+add_subdirectory(include)
+add_subdirectory(sample)
