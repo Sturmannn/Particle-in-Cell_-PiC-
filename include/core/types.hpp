@@ -1,4 +1,5 @@
 #pragma once
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -22,14 +23,20 @@ constexpr const char *path_to_convergence_data = PATH_TO_CONVERGENCE_DATA;
 constexpr int MPI_DIMENSION = 3;
 // ---MPI---
 
-using Field = std::vector<double>;
-using TimeStep = double;
-using UnboundedGridSizes = GridSizes;
-using BoundedGridSizes = GridSizes;
-
 enum class Axis { X, Y, Z };
 enum class Component { Ex, Ey, Ez, Bx, By, Bz };
-std::ostream &operator<<(std::ostream &os, const Component &comp);
+inline std::ostream &operator<<(std::ostream &os, const Component &comp) {
+  switch(comp) {
+    case Component::Ex: os << "Ex"; break;
+    case Component::Ey: os << "Ey"; break;
+    case Component::Ez: os << "Ez"; break;
+    case Component::Bx: os << "Bx"; break;
+    case Component::By: os << "By"; break;
+    case Component::Bz: os << "Bz"; break;
+    default: os << "Unknown"; break;
+}
+return os;
+};
 
 // ------------------------------------------------------
 enum class Shift { shifted, unshifted };
@@ -47,5 +54,10 @@ struct GridCoordinatesBounds {
 struct GridCoordinatesSteps {
   double dx, dy, dz;
 };
+
+using Field = std::vector<double>;
+using TimeStep = double;
+using UnboundedGridSizes = GridSizes;
+using BoundedGridSizes = GridSizes;
 
 } // namespace FDTD

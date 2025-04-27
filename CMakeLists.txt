@@ -72,7 +72,7 @@ message(STATUS "CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS})
 message(STATUS "Build type: " ${CMAKE_BUILD_TYPE})
 
 # ---------------------------------------------------------------------
-set (FDTD_LIB "FDTD_LIB")
+set (FDTD_LIB "LibFDTD")
 set (FDTD_SAMPLE "SampleFDTD")
 add_subdirectory(include)
 add_subdirectory(sample)

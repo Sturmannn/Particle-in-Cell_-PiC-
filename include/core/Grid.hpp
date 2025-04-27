@@ -1,4 +1,5 @@
 #pragma once
+
 #include "types.hpp"
 
 namespace FDTD {
@@ -36,13 +37,15 @@ public:
   }
   void set_mpi_local_bounded_subdomain_sizes(
       const BoundedGridSizes &mpi_local_bounded_subdomain_sizes) {
-    this->mpi_local_unbounded_subdomain_sizes =
-        mpi_local_bounded_subdomain_sizes;
+        this->mpi_local_bounded_subdomain_sizes.Nx = mpi_local_bounded_subdomain_sizes.Nx;
+        this->mpi_local_bounded_subdomain_sizes.Ny = mpi_local_bounded_subdomain_sizes.Ny;
+        this->mpi_local_bounded_subdomain_sizes.Nz = mpi_local_bounded_subdomain_sizes.Nz;
   }
   void set_mpi_local_unbounded_subdomain_sizes(
       const UnboundedGridSizes &mpi_local_unbounded_subdomain_sizes) {
-    this->mpi_local_unbounded_subdomain_sizes =
-        mpi_local_unbounded_subdomain_sizes;
+    this->mpi_local_unbounded_subdomain_sizes.Nx = mpi_local_unbounded_subdomain_sizes.Nx;
+    this->mpi_local_unbounded_subdomain_sizes.Ny = mpi_local_unbounded_subdomain_sizes.Ny;
+    this->mpi_local_unbounded_subdomain_sizes.Nz = mpi_local_unbounded_subdomain_sizes.Nz;
   }
 
   BoundedGridSizes get_bounded_grid_sizes() const { return bounded_grid_sizes; }
@@ -68,7 +71,7 @@ public:
     int Ny = mpi_local_bounded_subdomain_sizes.Ny;
     int Nz = mpi_local_bounded_subdomain_sizes.Nz;
 
-    return Nx * Ny * (k + 1) + Nx * (j + 1) + (i + 1);
+    return Ny * Nz * (i + 1) + Nz * (j + 1) + (k + 1);
     // return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Ny + 2) * (i + 1) + (j +
     // 1)];
   }

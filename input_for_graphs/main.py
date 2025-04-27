@@ -58,8 +58,8 @@ fig, axs = plt.subplots(3, 2, figsize=(14, 10))
 axs = axs.flatten()
 
 # Создание оси Ox
-# x_axis = np.arange(len(num_combined_data[0]))
-x_axis = np.arange(len(num_combined_data[0])) * delta
+x_axis = np.arange(len(anl_combined_data[0]))
+# x_axis = np.arange(len(num_combined_data[0])) * delta
 
 # Цвета для различных графиков
 colors = ['blue', 'red']
@@ -72,7 +72,7 @@ for idx, field in enumerate(fields):
     
     # Построение численного и аналитического графиков
     axs[idx].plot(x_axis, anl_values, label='Аналитическое решение', color=colors[1], linewidth=3, alpha=0.7)
-    axs[idx].plot(x_axis, num_values, label='Численное решение', color=colors[0], linestyle='--', linewidth=4, alpha=0.7)
+    # axs[idx].plot(x_axis, num_values, label='Численное решение', color=colors[0], linestyle='--', linewidth=4, alpha=0.7)
     
     # Настройка подписей и заголовков
     axs[idx].set_xlabel(r'N$\Delta$x', fontsize=12)
