@@ -344,6 +344,10 @@ double FDTD_MPI::get_space_delta(const Component E, const Component B) const {
 
 void AnalyticalSolverFDTD::solve(const Component E, const Component B,
                                  const double t, const Shift _shift) {
+  if (mpi_wrapper->get_world_rank() == 0) {
+    std::cout << "Axis: " << axisToString(E, B) << std::endl;
+  }
+  
   analytical_soulution(E, B, t, _shift);
 }
 
@@ -435,8 +439,8 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
     double sign = get_sign(E, B);
 
     for (int k = 0; k < Nz; ++k, z += steps.dz)
-      for (int j = 0; j < 2; ++j)
-        for (int i = 0; i < 2; ++i) {
+      for (int j = 0; j < Ny; ++j)
+        for (int i = 0; i < Nx; ++i) {
           int index =
               (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
           Ex[index] = Ey[index] = Ez[index] = 0.0;
@@ -447,12 +451,6 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
           B_field[index] =
               sin(2.0 * PI * (z + steps.dz * coeff - bounds.az - sign * C * t) /
                   (bounds.bz - bounds.az));
-          // if (B_field[index] != 0.0) {
-          //   std::cout << "Rank: " << mpi_wrapper->get_world_rank() << "
-          //   index: "
-          //             << index << " E_field: " << B_field[index] <<
-          //             std::endl;
-          // }
         }
   }
   boundary_synchronization_3D();
@@ -606,8 +604,8 @@ void NumericalSolverFDTD::set_default_values(const Component E,
     double sign = get_sign(E, B);
 
     for (int k = 0; k < Nz; ++k, z += steps.dz)
-      for (int j = 0; j < 2; ++j)
-        for (int i = 0; i < 2; ++i) {
+      for (int j = 0; j < Ny; ++j)
+        for (int i = 0; i < Nx; ++i) {
           int index =
               (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
           Ex[index] = Ey[index] = Ez[index] = 0.0;

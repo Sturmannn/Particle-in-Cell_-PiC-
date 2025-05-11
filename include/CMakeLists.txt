@@ -13,9 +13,6 @@ target_include_directories(${FDTD_LIB} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/parallel
 )
 
-message(STATUS "FDTD_LIB: ${FDTD_LIB}")
-message(STATUS "CMAKE_CURRENT_SOURCE_DIR: ${CMAKE_CURRENT_SOURCE_DIR}")
-
 if(OpenMP_CXX_FOUND)
     target_link_libraries(${FDTD_LIB} PUBLIC MPI::MPI_CXX OpenMP::OpenMP_CXX)
 else()

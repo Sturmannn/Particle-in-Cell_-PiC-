@@ -134,8 +134,8 @@ TEST(Test_version_comparison, shifted_OZ) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-  Component E = Component::Ez;
-  Component B = Component::Bx;
+  Component E = Component::Ex;
+  Component B = Component::By;
   Shift shift = Shift::shifted;
   
   if (rank == 0) {
