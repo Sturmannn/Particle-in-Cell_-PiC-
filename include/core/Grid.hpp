@@ -49,10 +49,7 @@ public:
   }
 
   BoundedGridSizes get_bounded_grid_sizes() const { return bounded_grid_sizes; }
-  // int get_total_bounded_grid_sizes() const {
-  //   return bounded_grid_sizes.Nx * bounded_grid_sizes.Ny *
-  //          bounded_grid_sizes.Nz;
-  // }
+
   BoundedGridSizes get_mpi_local_bounded_subdomain_sizes() const {
     return mpi_local_bounded_subdomain_sizes;
   }
@@ -64,22 +61,12 @@ public:
   TimeStep get_dt() const { return dt; }
 
   double get_index(const int i, const int j, const int k) {
-    // int Nx = bounded_grid_sizes.Nx;
-    // int Ny = bounded_grid_sizes.Ny;
-    // int Nz = bounded_grid_sizes.Nz;
     int Nx = mpi_local_bounded_subdomain_sizes.Nx;
     int Ny = mpi_local_bounded_subdomain_sizes.Ny;
     int Nz = mpi_local_bounded_subdomain_sizes.Nz;
 
     return Ny * Nz * (i + 1) + Nz * (j + 1) + (k + 1);
-    // return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Ny + 2) * (i + 1) + (j +
-    // 1)];
   }
-
-  // void set_sizes(const GridSizes &new_sizes) { sizes = new_sizes; }
-  // void set_bounds(const GridCoordinatesBounds &new_bounds) {
-  //   bounds = new_bounds;
-  // }
 
 private:
   BoundedGridSizes bounded_grid_sizes;     // Nx + 2, Ny + 2, Nz + 2

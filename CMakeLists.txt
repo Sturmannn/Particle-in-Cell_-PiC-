@@ -74,5 +74,13 @@ message(STATUS "Build type: " ${CMAKE_BUILD_TYPE})
 # ---------------------------------------------------------------------
 set (FDTD_LIB "LibFDTD")
 set (FDTD_SAMPLE "SampleFDTD")
+
+# if(GNU OR Clang)
+#     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -ffast-math")
+# elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+#     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fp-model fast")
+# endif()
+
+# add_compile_options(-Rpass-analysis=loop-vectorize)
 add_subdirectory(include)
 add_subdirectory(sample)

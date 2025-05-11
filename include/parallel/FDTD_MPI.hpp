@@ -54,15 +54,13 @@ public:
 
   virtual void solve(const Component E, const Component B, const double t,
                      const Shift _shift) = 0; // Pure virtual function
-
+  
 protected:
   std::shared_ptr<Grid> grid;
   std::shared_ptr<MPI_Wrapper> mpi_wrapper;
 
   MPI_Comm cart_comm;
   Field Ex, Ey, Ez, Bx, By, Bz;
-  void update_E_field(const int iterations);
-  void update_B_field(const int iterations);
 };
 
 class AnalyticalSolverFDTD : public FDTD_MPI {

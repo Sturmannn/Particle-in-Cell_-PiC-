@@ -106,6 +106,7 @@ void FDTD_MPI::boundary_synchronization_3D() {
   std::vector<double> left_send(Ny * Nz * 6, 0.0);
   std::vector<double> right_receive(Ny * Nz * 6, 0.0);
 
+// #pragma omp for collapse(2)
   for (int y = 0; y < Ny; ++y)
     for (int z = 0; z < Nz; ++z) {
       int storage_index = y * Nz + z;
@@ -120,6 +121,8 @@ void FDTD_MPI::boundary_synchronization_3D() {
   mpi_wrapper->mpi_sendrecv(left_send.data(), Ny * Nz * 6, MPI_DOUBLE, left, 1,
                             right_receive.data(), Ny * Nz * 6, MPI_DOUBLE,
                             right, 1, cart_comm, MPI_STATUS_IGNORE);
+
+// #pragma omp for collapse(2)
   for (int y = 0; y < Ny; ++y)
     for (int z = 0; z < Nz; ++z) {
       int storage_index = y * Nz + z;
@@ -131,10 +134,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
       By[index] = right_receive[storage_index + (Ny * Nz) * 4];
       Bz[index] = right_receive[storage_index + (Ny * Nz) * 5];
     }
+
   // 2. Send and receive right and left faces
   std::vector<double> &right_send = left_send;
   std::vector<double> &left_receive = right_receive;
 
+// #pragma omp for collapse(2)
   for (int y = 0; y < Ny; ++y)
     for (int z = 0; z < Nz; ++z) {
       int storage_index = y * Nz + z;
@@ -151,6 +156,8 @@ void FDTD_MPI::boundary_synchronization_3D() {
   mpi_wrapper->mpi_sendrecv(right_send.data(), Ny * Nz * 6, MPI_DOUBLE, right,
                             2, left_receive.data(), Ny * Nz * 6, MPI_DOUBLE,
                             left, 2, cart_comm, MPI_STATUS_IGNORE);
+
+// #pragma omp for collapse(2)
   for (int y = 0; y < Ny; ++y)
     for (int z = 0; z < Nz; ++z) {
       int storage_index = y * Nz + z;
@@ -162,12 +169,14 @@ void FDTD_MPI::boundary_synchronization_3D() {
       By[index] = left_receive[storage_index + (Ny * Nz) * 4];
       Bz[index] = left_receive[storage_index + (Ny * Nz) * 5];
     }
+
   // 3. Send and receive back and front faces
   std::vector<double> &back_send = left_send;
   std::vector<double> &front_receive = right_receive;
   back_send.resize((Nx + 2) * Nz * 6);
   front_receive.resize((Nx + 2) * Nz * 6);
 
+// #pragma omp for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int z = 0; z < Nz; ++z) {
       int storage_index = (x + 1) * Nz + z;
@@ -183,6 +192,8 @@ void FDTD_MPI::boundary_synchronization_3D() {
   mpi_wrapper->mpi_sendrecv(back_send.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE,
                             back, 3, front_receive.data(), (Nx + 2) * Nz * 6,
                             MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
+
+// #pragma omp for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int z = 0; z < Nz; ++z) {
       int storage_index = (x + 1) * Nz + z;
@@ -194,10 +205,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
       By[index] = front_receive[storage_index + (Nx + 2) * Nz * 4];
       Bz[index] = front_receive[storage_index + (Nx + 2) * Nz * 5];
     }
+
   // 4. Send and receive front and back faces
   std::vector<double> &front_send = left_send;
   std::vector<double> &back_receive = right_receive;
 
+// #pragma omp for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int z = 0; z < Nz; ++z) {
       int storage_index = (x + 1) * Nz + z;
@@ -209,9 +222,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
       front_send[storage_index + (Nx + 2) * Nz * 4] = By[index];
       front_send[storage_index + (Nx + 2) * Nz * 5] = Bz[index];
     }
+
   mpi_wrapper->mpi_sendrecv(front_send.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE,
                             front, 4, back_receive.data(), (Nx + 2) * Nz * 6,
                             MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
+
+// #pragma omp for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int z = 0; z < Nz; ++z) {
       int storage_index = (x + 1) * Nz + z;
@@ -230,6 +246,7 @@ void FDTD_MPI::boundary_synchronization_3D() {
   up_send.resize((Nx + 2) * (Ny + 2) * 6);
   down_receive.resize((Nx + 2) * (Ny + 2) * 6);
 
+// #pragma omp for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int y = -1; y < Ny + 1; ++y) {
       int storage_index = (x + 1) * (Ny + 2) + (y + 1);
@@ -242,9 +259,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
       up_send[storage_index + (Nx + 2) * (Ny + 2) * 4] = By[index];
       up_send[storage_index + (Nx + 2) * (Ny + 2) * 5] = Bz[index];
     }
+
   mpi_wrapper->mpi_sendrecv(up_send.data(), (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE,
                             up, 5, down_receive.data(), (Nx + 2) * (Ny + 2) * 6,
                             MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
+
+// #pragma omp for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int y = -1; y < Ny + 1; ++y) {
       int storage_index = (x + 1) * (Ny + 2) + (y + 1);
@@ -256,10 +276,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
       By[index] = down_receive[storage_index + (Nx + 2) * (Ny + 2) * 4];
       Bz[index] = down_receive[storage_index + (Nx + 2) * (Ny + 2) * 5];
     }
+
   // 6. Send and receive bottom and top faces
   std::vector<double> &down_send = left_send;
   std::vector<double> &up_receive = right_receive;
 
+// #pragma omp for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int y = -1; y < Ny + 1; ++y) {
       int storage_index = (x + 1) * (Ny + 2) + (y + 1);
@@ -271,10 +293,13 @@ void FDTD_MPI::boundary_synchronization_3D() {
       down_send[storage_index + (Nx + 2) * (Ny + 2) * 4] = By[index];
       down_send[storage_index + (Nx + 2) * (Ny + 2) * 5] = Bz[index];
     }
+
   mpi_wrapper->mpi_sendrecv(down_send.data(), (Nx + 2) * (Ny + 2) * 6,
                             MPI_DOUBLE, down, 6, up_receive.data(),
                             (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE, up, 6,
                             cart_comm, MPI_STATUS_IGNORE);
+
+// #pragma omp for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int y = -1; y < Ny + 1; ++y) {
       int storage_index = (x + 1) * (Ny + 2) + (y + 1);
@@ -347,7 +372,7 @@ void AnalyticalSolverFDTD::solve(const Component E, const Component B,
   if (mpi_wrapper->get_world_rank() == 0) {
     std::cout << "Axis: " << axisToString(E, B) << std::endl;
   }
-  
+
   analytical_soulution(E, B, t, _shift);
 }
 
@@ -386,11 +411,11 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
       shift_relative_to_other_processes +=
           all_local_Nx[mpi_wrapper->get_cart_rank(i - 1, coords[1], coords[2])];
     }
-
-    double x = bounds.ax + steps.dx * shift_relative_to_other_processes;
     double sign = get_sign(E, B);
 
-    for (int i = 0; i < Nx; ++i, x += steps.dx)
+// #pragma omp parallel for collapse(3)
+    for (int i = 0; i < Nx; ++i) {
+      double x = bounds.ax + steps.dx * (shift_relative_to_other_processes + i);
       for (int j = 0; j < Ny; ++j)
         for (int k = 0; k < Nz; ++k) {
           int index =
@@ -404,16 +429,18 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
               sin(2.0 * PI * (x + steps.dx * coeff - bounds.ax - sign * C * t) /
                   (bounds.bx - bounds.ax));
         }
+    }
   } else if (axis == Axis::Y) {
     std::vector<int> all_local_Ny = mpi_wrapper->get_sizes_OY();
     for (int j = coords[1]; j > 0; --j) {
       shift_relative_to_other_processes +=
           all_local_Ny[mpi_wrapper->get_cart_rank(coords[0], j - 1, coords[2])];
     }
-    double y = bounds.ay + steps.dy * shift_relative_to_other_processes;
     double sign = get_sign(E, B);
 
-    for (int j = 0; j < Ny; ++j, y += steps.dy)
+// #pragma omp parallel for collapse(3)
+    for (int j = 0; j < Ny; ++j) {
+      double y = bounds.ay + steps.dy * (shift_relative_to_other_processes + j);
       for (int i = 0; i < Nx; ++i)
         for (int k = 0; k < Nz; ++k) {
           int index =
@@ -429,16 +456,18 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
               sin(2.0 * PI * (y + steps.dy * coeff - bounds.ay - sign * C * t) /
                   (bounds.by - bounds.ay));
         }
+    }
   } else if (axis == Axis::Z) {
     std::vector<int> all_local_Nz = mpi_wrapper->get_sizes_OZ();
     for (int k = coords[2]; k > 0; --k) {
       shift_relative_to_other_processes +=
           all_local_Nz[mpi_wrapper->get_cart_rank(coords[0], coords[1], k - 1)];
     }
-    double z = bounds.az + steps.dz * shift_relative_to_other_processes;
     double sign = get_sign(E, B);
 
-    for (int k = 0; k < Nz; ++k, z += steps.dz)
+// #pragma omp parallel for collapse(3)
+    for (int k = 0; k < Nz; ++k) {
+      double z = bounds.az + steps.dz * (shift_relative_to_other_processes + k);
       for (int j = 0; j < Ny; ++j)
         for (int i = 0; i < Nx; ++i) {
           int index =
@@ -452,6 +481,7 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
               sin(2.0 * PI * (z + steps.dz * coeff - bounds.az - sign * C * t) /
                   (bounds.bz - bounds.az));
         }
+    }
   }
   boundary_synchronization_3D();
 }
@@ -474,6 +504,7 @@ void NumericalSolverFDTD::update_E_field() {
   double E_dt = grid->get_dt();
   double B_dt = E_dt * 0.5;
 
+// #pragma omp for collapse(3)
   for (int i = 0; i < Nx; ++i)
     for (int j = 0; j < Ny; ++j)
       for (int k = 0; k < Nz; ++k) {
@@ -504,17 +535,21 @@ void NumericalSolverFDTD::update_B_field() {
   double E_dt = grid->get_dt();
   double B_dt = E_dt * 0.5;
 
+  // #pragma omp for collapse(3)
   for (int i = 0; i < Nx; ++i)
     for (int j = 0; j < Ny; ++j)
       for (int k = 0; k < Nz; ++k) {
         int index =
             (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
-        Bx[index] += C * B_dt * ((Ey[grid->get_index(i, j, k + 1)] - Ey[index]) / dz -
-                                             (Ez[grid->get_index(i, j + 1, k)] - Ez[index]) / dy);
-        By[index] += C * B_dt * ((Ez[grid->get_index(i + 1, j, k)] - Ez[index]) / dx -
-                                             (Ex[grid->get_index(i, j, k + 1)] - Ex[index]) / dz);
-        Bz[index] += C * B_dt * ((Ex[grid->get_index(i, j + 1, k)] - Ex[index]) / dy -
-                                              (Ey[grid->get_index(i + 1, j, k)] - Ey[index]) / dx);
+        Bx[index] += C * B_dt *
+                     ((Ey[grid->get_index(i, j, k + 1)] - Ey[index]) / dz -
+                      (Ez[grid->get_index(i, j + 1, k)] - Ez[index]) / dy);
+        By[index] += C * B_dt *
+                     ((Ez[grid->get_index(i + 1, j, k)] - Ez[index]) / dx -
+                      (Ex[grid->get_index(i, j, k + 1)] - Ex[index]) / dz);
+        Bz[index] += C * B_dt *
+                     ((Ex[grid->get_index(i, j + 1, k)] - Ex[index]) / dy -
+                      (Ey[grid->get_index(i + 1, j, k)] - Ey[index]) / dx);
       }
   boundary_synchronization_3D();
 }
@@ -553,11 +588,11 @@ void NumericalSolverFDTD::set_default_values(const Component E,
       shift_relative_to_other_processes +=
           all_local_Nx[mpi_wrapper->get_cart_rank(i - 1, coords[1], coords[2])];
     }
-
-    double x = bounds.ax + steps.dx * shift_relative_to_other_processes;
     double sign = get_sign(E, B);
 
-    for (int i = 0; i < Nx; ++i, x += steps.dx)
+// #pragma omp parallel for collapse(3)
+    for (int i = 0; i < Nx; ++i) {
+      double x = bounds.ax + steps.dx * (shift_relative_to_other_processes + i);
       for (int j = 0; j < Ny; ++j)
         for (int k = 0; k < Nz; ++k) {
           int index =
@@ -570,16 +605,18 @@ void NumericalSolverFDTD::set_default_values(const Component E,
           B_field[index] = sin(2.0 * PI * (x + steps.dx * coeff - bounds.ax) /
                                (bounds.bx - bounds.ax));
         }
+    }
   } else if (axis == Axis::Y) {
     std::vector<int> all_local_Ny = mpi_wrapper->get_sizes_OY();
     for (int j = coords[1]; j > 0; --j) {
       shift_relative_to_other_processes +=
           all_local_Ny[mpi_wrapper->get_cart_rank(coords[0], j - 1, coords[2])];
     }
-    double y = bounds.ay + steps.dy * shift_relative_to_other_processes;
     double sign = get_sign(E, B);
 
-    for (int j = 0; j < Ny; ++j, y += steps.dy)
+// #pragma omp parallel for collapse(3)
+    for (int j = 0; j < Ny; ++j) {
+      double y = bounds.ay + steps.dy * (shift_relative_to_other_processes + j);
       for (int i = 0; i < Nx; ++i)
         for (int k = 0; k < Nz; ++k) {
           int index =
@@ -594,16 +631,18 @@ void NumericalSolverFDTD::set_default_values(const Component E,
           B_field[index] = sin(2.0 * PI * (y + steps.dy * coeff - bounds.ay) /
                                (bounds.by - bounds.ay));
         }
+    }
   } else if (axis == Axis::Z) {
     std::vector<int> all_local_Nz = mpi_wrapper->get_sizes_OZ();
     for (int k = coords[2]; k > 0; --k) {
       shift_relative_to_other_processes +=
           all_local_Nz[mpi_wrapper->get_cart_rank(coords[0], coords[1], k - 1)];
     }
-    double z = bounds.az + steps.dz * shift_relative_to_other_processes;
     double sign = get_sign(E, B);
 
-    for (int k = 0; k < Nz; ++k, z += steps.dz)
+// #pragma omp parallel for collapse(3)
+    for (int k = 0; k < Nz; ++k) {
+      double z = bounds.az + steps.dz * (shift_relative_to_other_processes + k);
       for (int j = 0; j < Ny; ++j)
         for (int i = 0; i < Nx; ++i) {
           int index =
@@ -616,13 +655,17 @@ void NumericalSolverFDTD::set_default_values(const Component E,
           B_field[index] = sin(2.0 * PI * (z + steps.dz * coeff - bounds.az) /
                                (bounds.bz - bounds.az));
         }
+    }
   }
   boundary_synchronization_3D();
 }
 
 void FDTD::NumericalSolverFDTD::numerical_solution(const double t) {
+  int iterations = static_cast<int>(t);
 
-  for (int time = 0; time < static_cast<int>(t); ++time) {
+  // #pragma omp parallel
+  for (int time = 0; time < iterations; ++time) {
+    // std::cout << "Time step: " << time << std::endl;
     update_B_field();
     update_E_field();
     update_B_field();

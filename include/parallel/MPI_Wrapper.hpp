@@ -9,10 +9,7 @@ namespace FDTD {
 class MPI_Wrapper {
 public:
   MPI_Wrapper(MPI_Comm _world_comm, std::shared_ptr<Grid> _grid);
-  ~MPI_Wrapper() {
-    if (cart_comm != MPI_COMM_NULL)
-      MPI_Comm_free(&cart_comm);
-  };
+  ~MPI_Wrapper() = default;
 
   int get_world_size() const { return world_size; }
   int get_world_rank() const { return world_rank; }
@@ -50,6 +47,13 @@ public:
                     int recvtag, MPI_Comm comm, MPI_Status *status) {
     MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount,
                  recvtype, source, recvtag, comm, status);
+  }
+
+  void finalize() {
+    if (cart_comm != MPI_COMM_NULL) {
+      MPI_Comm_free(&cart_comm);
+      cart_comm = MPI_COMM_NULL;
+    }
   }
 
 private:
