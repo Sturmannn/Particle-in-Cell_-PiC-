@@ -98,76 +98,91 @@ void FDTD_MPI::boundary_synchronization_3D() {
 
   UnboundedGridSizes grid_sizes =
       grid->get_mpi_local_unbounded_subdomain_sizes();
-  int Nx = grid_sizes.Nx;
-  int Ny = grid_sizes.Ny;
-  int Nz = grid_sizes.Nz;
+  const int Nx = grid_sizes.Nx;
+  const int Ny = grid_sizes.Ny;
+  const int Nz = grid_sizes.Nz;
 
+  const int NyNz = Ny * Nz;
+  const int NxNz = (Nx + 2) * Nz;
+  const int NxNy = (Nx + 2) * (Ny + 2);
+  const int stride_yz = (Ny + 2) * (Nz + 2);
+  const int stride_z = Nz + 2;
+
+  int index, storage_index;
   // 1. Send and receive left and right faces
   std::vector<double> left_send(Ny * Nz * 6, 0.0);
   std::vector<double> right_receive(Ny * Nz * 6, 0.0);
 
-// #pragma omp for collapse(2)
+
+  #pragma omp parallel for private(storage_index, index)
   for (int y = 0; y < Ny; ++y)
+    #pragma omp simd
     for (int z = 0; z < Nz; ++z) {
-      int storage_index = y * Nz + z;
-      int index = (Ny + 2) * (Nz + 2) * (0 + 1) + (Nz + 2) * (y + 1) + (z + 1);
+      storage_index = y * Nz + z;
+      // int index = (Ny + 2) * (Nz + 2) * (0 + 1) + (Nz + 2) * (y + 1) + (z + 1);
+      index = stride_yz + stride_z * (y + 1) + (z + 1);
       left_send[storage_index] = Ex[index];
-      left_send[storage_index + (Ny * Nz) * 1] = Ey[index];
-      left_send[storage_index + (Ny * Nz) * 2] = Ez[index];
-      left_send[storage_index + (Ny * Nz) * 3] = Bx[index];
-      left_send[storage_index + (Ny * Nz) * 4] = By[index];
-      left_send[storage_index + (Ny * Nz) * 5] = Bz[index];
+      left_send[storage_index + NyNz * 1] = Ey[index];
+      left_send[storage_index + NyNz * 2] = Ez[index];
+      left_send[storage_index + NyNz * 3] = Bx[index];
+      left_send[storage_index + NyNz * 4] = By[index];
+      left_send[storage_index + NyNz * 5] = Bz[index];
     }
   mpi_wrapper->mpi_sendrecv(left_send.data(), Ny * Nz * 6, MPI_DOUBLE, left, 1,
                             right_receive.data(), Ny * Nz * 6, MPI_DOUBLE,
                             right, 1, cart_comm, MPI_STATUS_IGNORE);
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int y = 0; y < Ny; ++y)
+    #pragma omp simd
     for (int z = 0; z < Nz; ++z) {
-      int storage_index = y * Nz + z;
-      int index = (Ny + 2) * (Nz + 2) * (Nx + 1) + (Nz + 2) * (y + 1) + (z + 1);
+      storage_index = y * Nz + z;
+      // int index = (Ny + 2) * (Nz + 2) * (Nx + 1) + (Nz + 2) * (y + 1) + (z + 1);
+      index = stride_yz * (Nx + 1) + stride_z * (y + 1) + (z + 1);
       Ex[index] = right_receive[storage_index];
-      Ey[index] = right_receive[storage_index + (Ny * Nz) * 1];
-      Ez[index] = right_receive[storage_index + (Ny * Nz) * 2];
-      Bx[index] = right_receive[storage_index + (Ny * Nz) * 3];
-      By[index] = right_receive[storage_index + (Ny * Nz) * 4];
-      Bz[index] = right_receive[storage_index + (Ny * Nz) * 5];
+      Ey[index] = right_receive[storage_index + NyNz * 1];
+      Ez[index] = right_receive[storage_index + NyNz * 2];
+      Bx[index] = right_receive[storage_index + NyNz * 3];
+      By[index] = right_receive[storage_index + NyNz * 4];
+      Bz[index] = right_receive[storage_index + NyNz * 5];
     }
 
   // 2. Send and receive right and left faces
   std::vector<double> &right_send = left_send;
   std::vector<double> &left_receive = right_receive;
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int y = 0; y < Ny; ++y)
+    #pragma omp simd
     for (int z = 0; z < Nz; ++z) {
-      int storage_index = y * Nz + z;
-      int index =
-          (Ny + 2) * (Nz + 2) * ((Nx - 1) + 1) + (Nz + 2) * (y + 1) + (z + 1);
+      storage_index = y * Nz + z;
+      // int index = (Ny + 2) * (Nz + 2) * ((Nx - 1) + 1) + (Nz + 2) * (y + 1) + (z + 1);
+      index = stride_yz * Nx + stride_z * (y + 1) + (z + 1);
       right_send[storage_index] = Ex[index];
-      right_send[storage_index + (Ny * Nz) * 1] = Ey[index];
-      right_send[storage_index + (Ny * Nz) * 2] = Ez[index];
-      right_send[storage_index + (Ny * Nz) * 3] = Bx[index];
-      right_send[storage_index + (Ny * Nz) * 4] = By[index];
-      right_send[storage_index + (Ny * Nz) * 5] = Bz[index];
+      right_send[storage_index + NyNz * 1] = Ey[index];
+      right_send[storage_index + NyNz * 2] = Ez[index];
+      right_send[storage_index + NyNz * 3] = Bx[index];
+      right_send[storage_index + NyNz * 4] = By[index];
+      right_send[storage_index + NyNz * 5] = Bz[index];
     }
 
   mpi_wrapper->mpi_sendrecv(right_send.data(), Ny * Nz * 6, MPI_DOUBLE, right,
                             2, left_receive.data(), Ny * Nz * 6, MPI_DOUBLE,
                             left, 2, cart_comm, MPI_STATUS_IGNORE);
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int y = 0; y < Ny; ++y)
+    #pragma omp simd
     for (int z = 0; z < Nz; ++z) {
-      int storage_index = y * Nz + z;
-      int index = (Ny + 2) * (Nz + 2) * (-1 + 1) + (Nz + 2) * (y + 1) + (z + 1);
+      storage_index = y * Nz + z;
+      // int index = (Ny + 2) * (Nz + 2) * (-1 + 1) + (Nz + 2) * (y + 1) + (z + 1);
+      index = stride_z * (y + 1) + (z + 1);
       Ex[index] = left_receive[storage_index];
-      Ey[index] = left_receive[storage_index + (Ny * Nz) * 1];
-      Ez[index] = left_receive[storage_index + (Ny * Nz) * 2];
-      Bx[index] = left_receive[storage_index + (Ny * Nz) * 3];
-      By[index] = left_receive[storage_index + (Ny * Nz) * 4];
-      Bz[index] = left_receive[storage_index + (Ny * Nz) * 5];
+      Ey[index] = left_receive[storage_index + NyNz * 1];
+      Ez[index] = left_receive[storage_index + NyNz * 2];
+      Bx[index] = left_receive[storage_index + NyNz * 3];
+      By[index] = left_receive[storage_index + NyNz * 4];
+      Bz[index] = left_receive[storage_index + NyNz * 5];
     }
 
   // 3. Send and receive back and front faces
@@ -176,68 +191,75 @@ void FDTD_MPI::boundary_synchronization_3D() {
   back_send.resize((Nx + 2) * Nz * 6);
   front_receive.resize((Nx + 2) * Nz * 6);
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int x = -1; x < Nx + 1; ++x)
+    #pragma omp simd
     for (int z = 0; z < Nz; ++z) {
-      int storage_index = (x + 1) * Nz + z;
-      int index =
-          (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * ((Ny - 1) + 1) + (z + 1);
+      storage_index = (x + 1) * Nz + z;
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * ((Ny - 1) + 1) + (z + 1);
+      index = stride_yz * (x + 1) + stride_z * Ny + (z + 1);
       back_send[storage_index] = Ex[index];
-      back_send[storage_index + (Nx + 2) * Nz * 1] = Ey[index];
-      back_send[storage_index + (Nx + 2) * Nz * 2] = Ez[index];
-      back_send[storage_index + (Nx + 2) * Nz * 3] = Bx[index];
-      back_send[storage_index + (Nx + 2) * Nz * 4] = By[index];
-      back_send[storage_index + (Nx + 2) * Nz * 5] = Bz[index];
+      back_send[storage_index + NxNz * 1] = Ey[index];
+      back_send[storage_index + NxNz * 2] = Ez[index];
+      back_send[storage_index + NxNz * 3] = Bx[index];
+      back_send[storage_index + NxNz * 4] = By[index];
+      back_send[storage_index + NxNz * 5] = Bz[index];
     }
   mpi_wrapper->mpi_sendrecv(back_send.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE,
                             back, 3, front_receive.data(), (Nx + 2) * Nz * 6,
                             MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int x = -1; x < Nx + 1; ++x)
+    #pragma omp simd
     for (int z = 0; z < Nz; ++z) {
-      int storage_index = (x + 1) * Nz + z;
-      int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (-1 + 1) + (z + 1);
+      storage_index = (x + 1) * Nz + z;
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (-1 + 1) + (z + 1);
+      index = stride_yz * (x + 1) + (z + 1);
       Ex[index] = front_receive[storage_index];
-      Ey[index] = front_receive[storage_index + (Nx + 2) * Nz * 1];
-      Ez[index] = front_receive[storage_index + (Nx + 2) * Nz * 2];
-      Bx[index] = front_receive[storage_index + (Nx + 2) * Nz * 3];
-      By[index] = front_receive[storage_index + (Nx + 2) * Nz * 4];
-      Bz[index] = front_receive[storage_index + (Nx + 2) * Nz * 5];
+      Ey[index] = front_receive[storage_index + NxNz * 1];
+      Ez[index] = front_receive[storage_index + NxNz * 2];
+      Bx[index] = front_receive[storage_index + NxNz * 3];
+      By[index] = front_receive[storage_index + NxNz * 4];
+      Bz[index] = front_receive[storage_index + NxNz * 5];
     }
 
   // 4. Send and receive front and back faces
   std::vector<double> &front_send = left_send;
   std::vector<double> &back_receive = right_receive;
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int x = -1; x < Nx + 1; ++x)
+    #pragma omp simd
     for (int z = 0; z < Nz; ++z) {
-      int storage_index = (x + 1) * Nz + z;
-      int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (0 + 1) + (z + 1);
+      storage_index = (x + 1) * Nz + z;
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (0 + 1) + (z + 1);
+      index = stride_yz * (x + 1) + stride_z + (z + 1);
       front_send[storage_index] = Ex[index];
-      front_send[storage_index + (Nx + 2) * Nz * 1] = Ey[index];
-      front_send[storage_index + (Nx + 2) * Nz * 2] = Ez[index];
-      front_send[storage_index + (Nx + 2) * Nz * 3] = Bx[index];
-      front_send[storage_index + (Nx + 2) * Nz * 4] = By[index];
-      front_send[storage_index + (Nx + 2) * Nz * 5] = Bz[index];
+      front_send[storage_index + NxNz * 1] = Ey[index];
+      front_send[storage_index + NxNz * 2] = Ez[index];
+      front_send[storage_index + NxNz * 3] = Bx[index];
+      front_send[storage_index + NxNz * 4] = By[index];
+      front_send[storage_index + NxNz * 5] = Bz[index];
     }
 
   mpi_wrapper->mpi_sendrecv(front_send.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE,
                             front, 4, back_receive.data(), (Nx + 2) * Nz * 6,
                             MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int x = -1; x < Nx + 1; ++x)
+    #pragma omp simd
     for (int z = 0; z < Nz; ++z) {
-      int storage_index = (x + 1) * Nz + z;
-      int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (Ny + 1) + (z + 1);
+      storage_index = (x + 1) * Nz + z;
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (Ny + 1) + (z + 1);
+      index = stride_yz * (x + 1) + stride_z * (Ny + 1) + (z + 1);
       Ex[index] = back_receive[storage_index];
-      Ey[index] = back_receive[storage_index + (Nx + 2) * Nz * 1];
-      Ez[index] = back_receive[storage_index + (Nx + 2) * Nz * 2];
-      Bx[index] = back_receive[storage_index + (Nx + 2) * Nz * 3];
-      By[index] = back_receive[storage_index + (Nx + 2) * Nz * 4];
-      Bz[index] = back_receive[storage_index + (Nx + 2) * Nz * 5];
+      Ey[index] = back_receive[storage_index + NxNz * 1];
+      Ez[index] = back_receive[storage_index + NxNz * 2];
+      Bx[index] = back_receive[storage_index + NxNz * 3];
+      By[index] = back_receive[storage_index + NxNz * 4];
+      Bz[index] = back_receive[storage_index + NxNz * 5];
     }
 
   // 5. Send and receive top and bottom faces
@@ -246,52 +268,57 @@ void FDTD_MPI::boundary_synchronization_3D() {
   up_send.resize((Nx + 2) * (Ny + 2) * 6);
   down_receive.resize((Nx + 2) * (Ny + 2) * 6);
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int x = -1; x < Nx + 1; ++x)
+    #pragma omp simd
     for (int y = -1; y < Ny + 1; ++y) {
-      int storage_index = (x + 1) * (Ny + 2) + (y + 1);
-      int index =
-          (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + ((Nz - 1) + 1);
+      storage_index = (x + 1) * (Ny + 2) + (y + 1);
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + ((Nz - 1) + 1);
+      index = stride_yz * (x + 1) + stride_z * (y + 1) + Nz;
       up_send[storage_index] = Ex[index];
-      up_send[storage_index + (Nx + 2) * (Ny + 2) * 1] = Ey[index];
-      up_send[storage_index + (Nx + 2) * (Ny + 2) * 2] = Ez[index];
-      up_send[storage_index + (Nx + 2) * (Ny + 2) * 3] = Bx[index];
-      up_send[storage_index + (Nx + 2) * (Ny + 2) * 4] = By[index];
-      up_send[storage_index + (Nx + 2) * (Ny + 2) * 5] = Bz[index];
+      up_send[storage_index + NxNy * 1] = Ey[index];
+      up_send[storage_index + NxNy * 2] = Ez[index];
+      up_send[storage_index + NxNy * 3] = Bx[index];
+      up_send[storage_index + NxNy * 4] = By[index];
+      up_send[storage_index + NxNy * 5] = Bz[index];
     }
 
   mpi_wrapper->mpi_sendrecv(up_send.data(), (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE,
                             up, 5, down_receive.data(), (Nx + 2) * (Ny + 2) * 6,
                             MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int x = -1; x < Nx + 1; ++x)
+    #pragma omp simd
     for (int y = -1; y < Ny + 1; ++y) {
-      int storage_index = (x + 1) * (Ny + 2) + (y + 1);
-      int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (-1 + 1);
+      storage_index = (x + 1) * (Ny + 2) + (y + 1);
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (-1 + 1);
+      index = stride_yz * (x + 1) + stride_z * (y + 1);
       Ex[index] = down_receive[storage_index];
-      Ey[index] = down_receive[storage_index + (Nx + 2) * (Ny + 2) * 1];
-      Ez[index] = down_receive[storage_index + (Nx + 2) * (Ny + 2) * 2];
-      Bx[index] = down_receive[storage_index + (Nx + 2) * (Ny + 2) * 3];
-      By[index] = down_receive[storage_index + (Nx + 2) * (Ny + 2) * 4];
-      Bz[index] = down_receive[storage_index + (Nx + 2) * (Ny + 2) * 5];
+      Ey[index] = down_receive[storage_index + NxNy * 1];
+      Ez[index] = down_receive[storage_index + NxNy * 2];
+      Bx[index] = down_receive[storage_index + NxNy * 3];
+      By[index] = down_receive[storage_index + NxNy * 4];
+      Bz[index] = down_receive[storage_index + NxNy * 5];
     }
 
   // 6. Send and receive bottom and top faces
   std::vector<double> &down_send = left_send;
   std::vector<double> &up_receive = right_receive;
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int x = -1; x < Nx + 1; ++x)
+    #pragma omp simd
     for (int y = -1; y < Ny + 1; ++y) {
-      int storage_index = (x + 1) * (Ny + 2) + (y + 1);
-      int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (0 + 1);
+      storage_index = (x + 1) * (Ny + 2) + (y + 1);
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (0 + 1);
+      index = stride_yz * (x + 1) + stride_z * (y + 1) + 1;
       down_send[storage_index] = Ex[index];
-      down_send[storage_index + (Nx + 2) * (Ny + 2) * 1] = Ey[index];
-      down_send[storage_index + (Nx + 2) * (Ny + 2) * 2] = Ez[index];
-      down_send[storage_index + (Nx + 2) * (Ny + 2) * 3] = Bx[index];
-      down_send[storage_index + (Nx + 2) * (Ny + 2) * 4] = By[index];
-      down_send[storage_index + (Nx + 2) * (Ny + 2) * 5] = Bz[index];
+      down_send[storage_index + NxNy * 1] = Ey[index];
+      down_send[storage_index + NxNy * 2] = Ez[index];
+      down_send[storage_index + NxNy * 3] = Bx[index];
+      down_send[storage_index + NxNy * 4] = By[index];
+      down_send[storage_index + NxNy * 5] = Bz[index];
     }
 
   mpi_wrapper->mpi_sendrecv(down_send.data(), (Nx + 2) * (Ny + 2) * 6,
@@ -299,17 +326,19 @@ void FDTD_MPI::boundary_synchronization_3D() {
                             (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE, up, 6,
                             cart_comm, MPI_STATUS_IGNORE);
 
-// #pragma omp for collapse(2)
+  #pragma omp parallel for private(storage_index, index)
   for (int x = -1; x < Nx + 1; ++x)
+    #pragma omp simd
     for (int y = -1; y < Ny + 1; ++y) {
-      int storage_index = (x + 1) * (Ny + 2) + (y + 1);
-      int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (Nz + 1);
+      storage_index = (x + 1) * (Ny + 2) + (y + 1);
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (Nz + 1);
+      index = stride_yz * (x + 1) + stride_z * (y + 1) + (Nz + 1);
       Ex[index] = up_receive[storage_index];
-      Ey[index] = up_receive[storage_index + (Nx + 2) * (Ny + 2) * 1];
-      Ez[index] = up_receive[storage_index + (Nx + 2) * (Ny + 2) * 2];
-      Bx[index] = up_receive[storage_index + (Nx + 2) * (Ny + 2) * 3];
-      By[index] = up_receive[storage_index + (Nx + 2) * (Ny + 2) * 4];
-      Bz[index] = up_receive[storage_index + (Nx + 2) * (Ny + 2) * 5];
+      Ey[index] = up_receive[storage_index + NxNy * 1];
+      Ez[index] = up_receive[storage_index + NxNy * 2];
+      Bx[index] = up_receive[storage_index + NxNy * 3];
+      By[index] = up_receive[storage_index + NxNy * 4];
+      Bz[index] = up_receive[storage_index + NxNy * 5];
     }
 }
 
@@ -413,7 +442,7 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
     }
     double sign = get_sign(E, B);
 
-// #pragma omp parallel for collapse(3)
+    // #pragma omp parallel for collapse(3)
     for (int i = 0; i < Nx; ++i) {
       double x = bounds.ax + steps.dx * (shift_relative_to_other_processes + i);
       for (int j = 0; j < Ny; ++j)
@@ -438,7 +467,7 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
     }
     double sign = get_sign(E, B);
 
-// #pragma omp parallel for collapse(3)
+    // #pragma omp parallel for collapse(3)
     for (int j = 0; j < Ny; ++j) {
       double y = bounds.ay + steps.dy * (shift_relative_to_other_processes + j);
       for (int i = 0; i < Nx; ++i)
@@ -465,7 +494,7 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
     }
     double sign = get_sign(E, B);
 
-// #pragma omp parallel for collapse(3)
+    // #pragma omp parallel for collapse(3)
     for (int k = 0; k < Nz; ++k) {
       double z = bounds.az + steps.dz * (shift_relative_to_other_processes + k);
       for (int j = 0; j < Ny; ++j)
@@ -493,64 +522,81 @@ void NumericalSolverFDTD::solve(const Component E, const Component B,
 }
 
 void NumericalSolverFDTD::update_E_field() {
-  double Nx = grid->get_mpi_local_unbounded_subdomain_sizes().Nx;
-  double Ny = grid->get_mpi_local_unbounded_subdomain_sizes().Ny;
-  double Nz = grid->get_mpi_local_unbounded_subdomain_sizes().Nz;
+  const int Nx = grid->get_mpi_local_unbounded_subdomain_sizes().Nx;
+  const int Ny = grid->get_mpi_local_unbounded_subdomain_sizes().Ny;
+  const int Nz = grid->get_mpi_local_unbounded_subdomain_sizes().Nz;
 
-  double dx = grid->get_coordinates_steps().dx;
-  double dy = grid->get_coordinates_steps().dy;
-  double dz = grid->get_coordinates_steps().dz;
+  // E_dt = grid->get_dt();
+  const double C_mul_Edt = C * grid->get_dt();
 
-  double E_dt = grid->get_dt();
-  double B_dt = E_dt * 0.5;
+  const double factor_x = C_mul_Edt / grid->get_coordinates_steps().dx;
+  const double factor_y = C_mul_Edt / grid->get_coordinates_steps().dy;
+  const double factor_z = C_mul_Edt / grid->get_coordinates_steps().dz;
 
-// #pragma omp for collapse(3)
-  for (int i = 0; i < Nx; ++i)
-    for (int j = 0; j < Ny; ++j)
-      for (int k = 0; k < Nz; ++k) {
-        int index =
-            (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
-        Ex[index] += C * E_dt *
-                     ((Bz[index] - Bz[grid->get_index(i, j - 1, k)]) / dy -
-                      (By[index] - By[grid->get_index(i, j, k - 1)]) / dz);
-        Ey[index] += C * E_dt *
-                     ((Bx[index] - Bx[grid->get_index(i, j, k - 1)]) / dz -
-                      (Bz[index] - Bz[grid->get_index(i - 1, j, k)]) / dx);
-        Ez[index] += C * E_dt *
-                     ((By[index] - By[grid->get_index(i - 1, j, k)]) / dx -
-                      (Bx[index] - Bx[grid->get_index(i, j - 1, k)]) / dy);
+  const int Ny_mul_Nz = (Ny + 2) * (Nz + 2);
+
+#pragma omp parallel
+  {
+    int index, index_i1, index_j1, index_k1;
+#pragma omp for collapse(2)
+    for (int i = 0; i < Nx; ++i)
+      for (int j = 0; j < Ny; ++j) {
+        index = Ny_mul_Nz * (i + 1) + (Nz + 2) * (j + 1);
+#pragma omp simd
+        for (int k = 0; k < Nz; ++k) {
+          ++index;
+          index_i1 = index - Ny_mul_Nz; // i - 1
+          index_j1 = index - (Nz + 2);  // j - 1
+          index_k1 = index - 1;         // k - 1
+          Ex[index] += factor_y * (Bz[index] - Bz[index_j1]) -
+                       factor_z * (By[index] - By[index_k1]);
+          Ey[index] += factor_z * (Bx[index] - Bx[index_k1]) -
+                       factor_x * (Bz[index] - Bz[index_i1]);
+          Ez[index] += factor_x * (By[index] - By[index_i1]) -
+                       factor_y * (Bx[index] - Bx[index_j1]);
+        }
       }
+  }
   boundary_synchronization_3D();
 }
 
 void NumericalSolverFDTD::update_B_field() {
-  double Nx = grid->get_mpi_local_unbounded_subdomain_sizes().Nx;
-  double Ny = grid->get_mpi_local_unbounded_subdomain_sizes().Ny;
-  double Nz = grid->get_mpi_local_unbounded_subdomain_sizes().Nz;
+  const int Nx = grid->get_mpi_local_unbounded_subdomain_sizes().Nx;
+  const int Ny = grid->get_mpi_local_unbounded_subdomain_sizes().Ny;
+  const int Nz = grid->get_mpi_local_unbounded_subdomain_sizes().Nz;
 
-  double dx = grid->get_coordinates_steps().dx;
-  double dy = grid->get_coordinates_steps().dy;
-  double dz = grid->get_coordinates_steps().dz;
+  // E_dt = grid->get_dt();
+  // B_dt = E_dt * 0.5;
+  const double C_mul_Bdt = C * grid->get_dt() * 0.5;
 
-  double E_dt = grid->get_dt();
-  double B_dt = E_dt * 0.5;
+  const double factor_x = C_mul_Bdt / grid->get_coordinates_steps().dx;
+  const double factor_y = C_mul_Bdt / grid->get_coordinates_steps().dy;
+  const double factor_z = C_mul_Bdt / grid->get_coordinates_steps().dz;
 
-  // #pragma omp for collapse(3)
-  for (int i = 0; i < Nx; ++i)
-    for (int j = 0; j < Ny; ++j)
-      for (int k = 0; k < Nz; ++k) {
-        int index =
-            (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
-        Bx[index] += C * B_dt *
-                     ((Ey[grid->get_index(i, j, k + 1)] - Ey[index]) / dz -
-                      (Ez[grid->get_index(i, j + 1, k)] - Ez[index]) / dy);
-        By[index] += C * B_dt *
-                     ((Ez[grid->get_index(i + 1, j, k)] - Ez[index]) / dx -
-                      (Ex[grid->get_index(i, j, k + 1)] - Ex[index]) / dz);
-        Bz[index] += C * B_dt *
-                     ((Ex[grid->get_index(i, j + 1, k)] - Ex[index]) / dy -
-                      (Ey[grid->get_index(i + 1, j, k)] - Ey[index]) / dx);
+  const int Ny_mul_Nz = (Ny + 2) * (Nz + 2);
+#pragma omp parallel
+  {
+    int index, index_i1, index_j1, index_k1;
+#pragma omp for collapse(2)
+    for (int i = 0; i < Nx; ++i)
+      for (int j = 0; j < Ny; ++j) {
+        index = Ny_mul_Nz * (i + 1) + (Nz + 2) * (j + 1);
+#pragma omp simd
+        for (int k = 0; k < Nz; ++k) {
+          ++index;
+          index_i1 = index + Ny_mul_Nz; // i + 1
+          index_j1 = index + (Nz + 2);  // j + 1
+          index_k1 = index + 1;         // k + 1
+
+          Bx[index] += factor_z * (Ey[index_k1] - Ey[index]) -
+                       factor_y * (Ez[index_j1] - Ez[index]);
+          By[index] += factor_x * (Ez[index_i1] - Ez[index]) -
+                       factor_z * (Ex[index_k1] - Ex[index]);
+          Bz[index] += factor_x * (Ex[index_j1] - Ex[index]) -
+                       factor_z * (Ey[index_i1] - Ey[index]);
+        }
       }
+  }
   boundary_synchronization_3D();
 }
 
@@ -590,7 +636,7 @@ void NumericalSolverFDTD::set_default_values(const Component E,
     }
     double sign = get_sign(E, B);
 
-// #pragma omp parallel for collapse(3)
+    // #pragma omp parallel for collapse(3)
     for (int i = 0; i < Nx; ++i) {
       double x = bounds.ax + steps.dx * (shift_relative_to_other_processes + i);
       for (int j = 0; j < Ny; ++j)
@@ -614,7 +660,7 @@ void NumericalSolverFDTD::set_default_values(const Component E,
     }
     double sign = get_sign(E, B);
 
-// #pragma omp parallel for collapse(3)
+    // #pragma omp parallel for collapse(3)
     for (int j = 0; j < Ny; ++j) {
       double y = bounds.ay + steps.dy * (shift_relative_to_other_processes + j);
       for (int i = 0; i < Nx; ++i)
@@ -640,7 +686,7 @@ void NumericalSolverFDTD::set_default_values(const Component E,
     }
     double sign = get_sign(E, B);
 
-// #pragma omp parallel for collapse(3)
+    // #pragma omp parallel for collapse(3)
     for (int k = 0; k < Nz; ++k) {
       double z = bounds.az + steps.dz * (shift_relative_to_other_processes + k);
       for (int j = 0; j < Ny; ++j)
@@ -662,8 +708,6 @@ void NumericalSolverFDTD::set_default_values(const Component E,
 
 void FDTD::NumericalSolverFDTD::numerical_solution(const double t) {
   int iterations = static_cast<int>(t);
-
-  // #pragma omp parallel
   for (int time = 0; time < iterations; ++time) {
     // std::cout << "Time step: " << time << std::endl;
     update_B_field();

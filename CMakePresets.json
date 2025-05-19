@@ -16,7 +16,7 @@
           "CMAKE_LINKER": "lld",
           "CMAKE_COLOR_DIAGNOSTICS": "ON",
           "CMAKE_BUILD_TYPE": "Debug",
-          "CMAKE_CXX_FLAGS": "-fopenmp -g"
+          "CMAKE_CXX_FLAGS": "-fopenmp"
         }
       },
       {

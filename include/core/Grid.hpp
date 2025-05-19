@@ -60,7 +60,7 @@ public:
   }
   TimeStep get_dt() const { return dt; }
 
-  double get_index(const int i, const int j, const int k) {
+  int get_index(const int i, const int j, const int k) {
     int Nx = mpi_local_bounded_subdomain_sizes.Nx;
     int Ny = mpi_local_bounded_subdomain_sizes.Ny;
     int Nz = mpi_local_bounded_subdomain_sizes.Nz;

@@ -81,6 +81,6 @@ set (FDTD_SAMPLE "SampleFDTD")
 #     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -fp-model fast")
 # endif()
 
-# add_compile_options(-Rpass-analysis=loop-vectorize)
+add_compile_options(-Rpass-analysis=loop-vectorize)
 add_subdirectory(include)
 add_subdirectory(sample)
