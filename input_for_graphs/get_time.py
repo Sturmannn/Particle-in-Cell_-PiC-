@@ -18,7 +18,10 @@ df.columns = [
     'Procs', 
     'Proc OХ', 
     'Proc OУ', 
-    'Proc OZ'
+    'Proc OZ',
+    'Nx',
+    'Ny',
+    'Nz'
 ]
 num_runs = 5
 

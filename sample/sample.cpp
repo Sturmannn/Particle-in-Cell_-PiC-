@@ -5,20 +5,23 @@
 int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
 
-  int rank, size;
+  int rank, world_size;
 
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 
-  FDTD::UnboundedGridSizes grid_sizes = {128, 128, 128}; // Nx, Ny, Nz
+  const int Nx = 64;
+  const int Ny = 64;
+  const int Nz = 64;
+
+  FDTD::UnboundedGridSizes grid_sizes = {Nx, Ny, Nz};
   FDTD::GridCoordinatesBounds bounds = {1.0, 2.0, 3.0, 2.0,
                                         3.0, 4.0}; // ax, ay, az, bx, by, bz
 
-  double dt = 0.25 * (bounds.bx - bounds.ax) /
+  const double dt = 0.25 * (bounds.bx - bounds.ax) /
               static_cast<double>(grid_sizes.Nx) / FDTD::C;
-  int iterations = 150;
+  const int iterations = 150;
   
-  // omp_set_num_threads(4);
   if (rank == 0) {
     std::cout << "OMP max threads: " << omp_get_max_threads() << std::endl;
   }
@@ -50,25 +53,35 @@ int main(int argc, char *argv[]) {
   std::chrono::duration<double> elapsed = end - start;
   if (rank == 0) {
     std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+    // Writing time to file -------
+    std::array<int, 3> dims = mpi_wrapper_ptr->get_dims();
+    std::ofstream measure_file;
+    measure_file.open(FDTD::path_to_measurements_file, std::ios::app);
+    if (measure_file.is_open()) {
+      measure_file << elapsed.count() << '\t' << omp_get_max_threads() << '\t' << world_size << "\t" <<
+        dims[0] << '\t' << dims[1] << '\t' << dims[2] << '\t' << Nx  << '\t' <<
+          Ny << '\t' << Nz << std::endl;
+    }
+    else {
+      std::cerr << "The file for measurements can't be opened" << std::endl;
+    }
+    measure_file.close();
+    
+    // ----------------------------
   }
+
 
   FDTD::FieldFileManager field_file_manager(mpi_wrapper_ptr);
   field_file_manager.clear_files(FDTD::path_to_analytical_data_directory);
   field_file_manager.write_fields_to_file(
       FDTD::path_to_analytical_data_directory, E, B,
       analytical_solver.get_space_delta(E, B), analytical_solver, 0);
-  // std::cout << "Analytical solution written to file." << std::endl;
 
   field_file_manager.clear_files(FDTD::path_to_calculated_data_directory);
   field_file_manager.write_fields_to_file(
       FDTD::path_to_calculated_data_directory, E, B,
       numerical_solver.get_space_delta(E, B), numerical_solver, 0);
-  // std::cout << "Numerical solution written to file." << std::endl;
   mpi_wrapper_ptr->finalize();
-  // mpi_wrapper_ptr.reset();
-  // grid_ptr.reset();
-  // std::cout << "MPI_Wrapper destructor called." << std::endl;
   MPI_Finalize();
-  // std::cout << "MPI_Finalize called." << std::endl;
   return 0;
 }

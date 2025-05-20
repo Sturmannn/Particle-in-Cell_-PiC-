@@ -18,6 +18,7 @@ constexpr const char *path_to_analytical_data_directory =
 constexpr const char *path_to_calculated_data_directory =
     PATH_TO_CALCULATED_DATA_DIRECTORY;
 constexpr const char *path_to_convergence_data = PATH_TO_CONVERGENCE_DATA;
+constexpr const char *path_to_measurements_file = PATH_TO_MEASUREMENTS_FILE;
 
 // ---MPI---
 constexpr int MPI_DIMENSION = 3;

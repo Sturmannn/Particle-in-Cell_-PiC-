@@ -23,6 +23,10 @@ public:
     return rank;
   }
 
+  std::array<int, 3> get_dims(void) const {
+    return dims;
+  }
+
   std::vector<int> get_sizes_OX() const {
     std::vector<int> all_local_Nx(world_size, 0);
     int Nx = grid->get_mpi_local_unbounded_subdomain_sizes().Nx;
@@ -47,6 +51,10 @@ public:
                     int recvtag, MPI_Comm comm, MPI_Status *status) {
     MPI_Sendrecv(sendbuf, sendcount, sendtype, dest, sendtag, recvbuf, recvcount,
                  recvtype, source, recvtag, comm, status);
+  }
+
+  void mpi_barrier(void) {
+    MPI_Barrier(cart_comm);
   }
 
   void finalize() {
