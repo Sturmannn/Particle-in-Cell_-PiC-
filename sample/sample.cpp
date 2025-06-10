@@ -20,22 +20,37 @@ int main(int argc, char *argv[]) {
 
   const double dt = 0.25 * (bounds.bx - bounds.ax) /
               static_cast<double>(grid_sizes.Nx) / FDTD::C;
+
+  // const double alpha = 0.95; // Security factor for the Courant condition
+  // const double dx = (bounds.bx - bounds.ax) / static_cast<double>(grid_sizes.Nx);
+  // const double dy = (bounds.by - bounds.ay) / static_cast<double>(grid_sizes.Ny);
+  // const double dz = (bounds.bz - bounds.az) / static_cast<double>(grid_sizes.Nz);
+  // const double dt = alpha / (FDTD::C * std::sqrt(1.0/(dx*dx) + 1.0/(dy*dy) + 1.0/(dz*dz)));
   const int iterations = 150;
-  
+  omp_set_num_threads(4);
+
   if (rank == 0) {
     std::cout << "OMP max threads: " << omp_get_max_threads() << std::endl;
   }
+
+  // #pragma omp parallel 
+  // {
+  //   if (rank == 0) {
+  //     std::cout << "kol-vo = " << omp_get_num_threads() << std::endl;
+  //   }
+  // }
+
   // #pragma omp parallel
   // {
   //   if (rank == 0) {
   //     std::cout << "Number of thread: " << omp_get_thread_num() << std::endl;
   //   }
   // }
-  FDTD::Component E = FDTD::Component::Ey;
-  FDTD::Component B = FDTD::Component::Bz;
   // FDTD::Component E = FDTD::Component::Ex;
-  // FDTD::Component B = FDTD::Component::By;
-  // FDTD::Component E = FDTD::Component::Ex;
+  // FDTD::Component B = FDTD::Component::Ey;
+  FDTD::Component E = FDTD::Component::Ez;
+  FDTD::Component B = FDTD::Component::Bx;
+  // FDTD::Component E = FDTD::Component::By;
   // FDTD::Component B = FDTD::Component::Bz;
   FDTD::Shift shift = FDTD::Shift::shifted;
 
@@ -70,6 +85,19 @@ int main(int argc, char *argv[]) {
     // ----------------------------
   }
 
+  // Check Error
+  double max_error = 0.0;
+  FDTD::Field E_analytical = analytical_solver.get_E_field(E);
+  FDTD::Field B_analytical = analytical_solver.get_B_field(B);
+  FDTD::Field E_numerical = numerical_solver.get_E_field(E);
+  FDTD::Field B_numerical = numerical_solver.get_B_field(B);
+  for (int i = 0; i < E_analytical.size(); ++i) {
+    double error = std::abs(E_numerical[i] - E_analytical[i]);
+    if (error > max_error) {
+      max_error = error;
+    }
+  }
+  std::cout << "Max error for E field: " << max_error << std::endl;
 
   FDTD::FieldFileManager field_file_manager(mpi_wrapper_ptr);
   field_file_manager.clear_files(FDTD::path_to_analytical_data_directory);

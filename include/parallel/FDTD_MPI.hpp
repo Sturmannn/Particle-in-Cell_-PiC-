@@ -37,7 +37,7 @@ public:
   FDTD_MPI &operator=(const FDTD_MPI &_fields) = default;
 
   std::shared_ptr<Grid> get_grid() const { return grid; }
-  void Courant_condition_check(const Shift _shift) const;
+  void Courant_condition_check() const;
 
   double get_sign(const Component E, const Component B) const;
   Field &get_E_field(const Component E);

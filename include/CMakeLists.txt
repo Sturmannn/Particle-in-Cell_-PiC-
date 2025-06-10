@@ -15,7 +15,7 @@ target_include_directories(${FDTD_LIB} PUBLIC
 
 if(OpenMP_CXX_FOUND)
     target_link_libraries(${FDTD_LIB} PUBLIC MPI::MPI_CXX OpenMP::OpenMP_CXX)
-    target_compile_options(${FDTD_LIB} PRIVATE ${CMAKE_CXX_FLAGS} -fopenmp)
+    # target_compile_options(${FDTD_LIB} PRIVATE ${CMAKE_CXX_FLAGS} -fopenmp)
 else()
     target_link_libraries(${FDTD_LIB} PUBLIC MPI::MPI_CXX)
     target_compile_options(${FDTD_LIB} PRIVATE ${CMAKE_CXX_FLAGS})

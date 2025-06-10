@@ -23,13 +23,13 @@ with open(path_to_measurements_file, "w"):
 
 # path_to_bin_file = Path(__file__).resolve().parent.joinpath("bin", "Tests")
 # path_to_bin_file = current_dir.join("bin", "Tests")
-path_to_bin_file = os.path.join(current_dir, "bin", "Tests")
+path_to_bin_file = os.path.join(current_dir, "bin", "SampleFDTD")
 
 # path_to_bin_file.joinpath("bin", "Tests")
 print('Путь до исполняемого файла -', path_to_bin_file)
 
 num_threads = 1
-num_runs = 2 # Количество итераций запуска программы для подсчёта времени работы
+num_runs = 5 # Количество итераций запуска программы для подсчёта времени работы
 ntasks_per_node = 1 # Число процессов на узел
 num_clusters = 1 # Число узлов
 np = num_clusters * num_clusters # Общее число процессов
@@ -57,13 +57,23 @@ t = 200 # Лимит на выполнение задачи
 #           .format(_time, _ntasks_per_node, _num_clusters, _OMP_NUM_THREADS, _ntasks_per_node * _num_clusters, _path_to_bin_file)
 #     return sbatch_command
 
-def call_sbatch(_time, _ntasks_per_node, _num_clusters, _path_to_bin_file, _domain_size,  _OMP_NUM_THREADS=1):
-    sbatch_command = 'sbatch -v -t {} -p gpu --ntasks-per-node {} -N {} \
-          --wrap="export OMP_NUM_THREADS={}; mpiexec -n {} {} --Nx {} --Ny {} --Nz {}"' \
-          .format(_time, _ntasks_per_node, _num_clusters, \
-                    _OMP_NUM_THREADS, _ntasks_per_node * _num_clusters, \
-                    _path_to_bin_file, _domain_size, _domain_size, _domain_size)
+# def call_sbatch(_time, _ntasks_per_node, _num_clusters, _path_to_bin_file, _domain_size,  _OMP_NUM_THREADS=1):
+#     sbatch_command = 'sbatch -v -t {} -p gpu --ntasks-per-node {} -N {} \
+#           --wrap="export OMP_NUM_THREADS={}; mpiexec -n {} {} --Nx {} --Ny {} --Nz {}"' \
+#           .format(_time, _ntasks_per_node, _num_clusters, \
+#                     _OMP_NUM_THREADS, _ntasks_per_node * _num_clusters, \
+#                     _path_to_bin_file, _domain_size, _domain_size, _domain_size)
+#     return sbatch_command
+
+def call_sbatch(_time, _ntasks_per_node, _num_clusters, _path_to_bin_file, _domain_size, _OMP_NUM_THREADS=1):
+    total_tasks = _ntasks_per_node * _num_clusters
+    sbatch_command = (
+        f'sbatch -v -t {_time} -p gpu --ntasks-per-node {_ntasks_per_node} -N {_num_clusters} '
+        f'--wrap="export OMP_NUM_THREADS={_OMP_NUM_THREADS}; '
+        f'mpiexec -n {total_tasks} {_path_to_bin_file}"'
+    )
     return sbatch_command
+
 
 
 # Устанавливаем количество OpenMP потоков
@@ -73,11 +83,15 @@ def call_sbatch(_time, _ntasks_per_node, _num_clusters, _path_to_bin_file, _doma
 # print(f'sbatch -v -t {t} -p gpu --ntasks-per-node {ntasks_per_node} -N {num_clusters} --wrap="mpiexec -np {np} {path_to_bin_file}"')
 
 
-domain_sizes = [32]
-thread_list = [1, 2, 4, 8, 16]
-# thread_list = [1, 1, 1, 1, 1]
-proc_list = [16, 8, 4, 2, 1]
-# proc_list = [2, 2, 2, 2, 2]
+domain_sizes = [512]
+# thread_list = [1, 2, 4, 8, 16, 32]
+# thread_list = [1, 1, 1, 1, 1, 1, 1, 1]
+# thread_list = [1, 1, 1, 1, 1, 1]
+thread_list = [1, 2, 4, 8, 16, 32]
+proc_list = [1, 1, 1, 1, 1, 1]
+# proc_list = [1, 2, 4, 8, 16, 32]
+# proc_list = [32, 16, 8, 4, 2, 1]
+# proc_list = [1, 2, 3, 4, 5, 6, 7, 8]
 
 
 # for index in range(len(thread_list)):

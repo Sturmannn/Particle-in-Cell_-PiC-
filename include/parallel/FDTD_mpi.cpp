@@ -8,20 +8,20 @@ FDTD_MPI::FDTD_MPI(std::shared_ptr<Grid> _grid,
   Ex = Ey = Ez = Bx = By = Bz = Field(grid_size);
 }
 
-void FDTD_MPI::Courant_condition_check(const Shift _shift) const {
+void FDTD_MPI::Courant_condition_check() const {
   GridCoordinatesSteps steps = grid->get_coordinates_steps();
   TimeStep dt = grid->get_dt();
   double dx = steps.dx, dy = steps.dy, dz = steps.dz;
-  if (_shift == Shift::shifted) {
-    if (dt <= (dx / (C * sqrt(2))) && dt <= (dy / (C * sqrt(2))))
-      return;
-  } else {
-    if (dt <= (dx * dx / 2 * (C * sqrt(2))) &&
-        dt <= (dy * dy / 2 * (C * sqrt(2))))
-      return;
+
+  double cfl_limit =
+      1.0 /
+      (C * std::sqrt(1.0 / (dx * dx) + 1.0 / (dy * dy) + 1.0 / (dz * dz)));
+  if (dt >= cfl_limit) {
+    std::cout << "Courant's condition is not satisfied\n";
+    std::cout << "Your dt = " << dt << "\n";
+    std::cout << "CFL limit = " << cfl_limit << "\n";
+    exit(-1);
   }
-  std::cout << "Courant's condition is not satisfied\n";
-  exit(-1);
 }
 
 double FDTD_MPI::get_sign(const Component E, const Component B) const {
@@ -113,80 +113,81 @@ void FDTD_MPI::boundary_synchronization_3D() {
   std::vector<double> left_send(Ny * Nz * 6, 0.0);
   std::vector<double> right_receive(Ny * Nz * 6, 0.0);
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int y = 0; y < Ny; ++y) {
-    // const int src_offset = (Ny + 2) * (Nz + 2) * (0 + 1) + (Nz + 2) * (y + 1) + (z + 1);
+    // const int src_offset = (Ny + 2) * (Nz + 2) * (0 + 1) + (Nz + 2) * (y + 1)
+    // + (z + 1);
     const int src_offset = stride_yz + stride_z * (y + 1) + 1;
     const int dst_offset = y * Nz;
-    
-    double* dst = &left_send[dst_offset];
-    memcpy(dst, &Ex[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz, &Ey[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz * 2, &Ez[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz * 3, &Bx[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz * 4, &By[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz * 5, &Bz[src_offset], Nz * sizeof(double));
+
+    double *dst = &left_send[dst_offset];
+    std::memcpy(dst, &Ex[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz, &Ey[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz * 2, &Ez[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz * 3, &Bx[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz * 4, &By[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz * 5, &Bz[src_offset], Nz * sizeof(double));
   }
 
   mpi_wrapper->mpi_sendrecv(left_send.data(), Ny * Nz * 6, MPI_DOUBLE, left, 1,
                             right_receive.data(), Ny * Nz * 6, MPI_DOUBLE,
                             right, 1, cart_comm, MPI_STATUS_IGNORE);
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int y = 0; y < Ny; ++y) {
-    // const int dst_offset = (Ny + 2) * (Nz + 2) * (Nx + 1) + (Nz + 2) * (y + 1) + (z + 1);
+    // const int dst_offset = (Ny + 2) * (Nz + 2) * (Nx + 1) + (Nz + 2) * (y +
+    // 1) + (z + 1);
     const int dst_offset = stride_yz * (Nx + 1) + stride_z * (y + 1) + 1;
     const int src_offset = y * Nz;
-    
-    double* src = &right_receive[src_offset];
-    memcpy(&Ex[dst_offset], src, Nz * sizeof(double));
-    memcpy(&Ey[dst_offset], src + NyNz, Nz * sizeof(double));
-    memcpy(&Ez[dst_offset], src + NyNz * 2, Nz * sizeof(double));
-    memcpy(&Bx[dst_offset], src + NyNz * 3, Nz * sizeof(double));
-    memcpy(&By[dst_offset], src + NyNz * 4, Nz * sizeof(double));
-    memcpy(&Bz[dst_offset], src + NyNz * 5, Nz * sizeof(double));
-  }
 
+    double *src = &right_receive[src_offset];
+    std::memcpy(&Ex[dst_offset], src, Nz * sizeof(double));
+    std::memcpy(&Ey[dst_offset], src + NyNz, Nz * sizeof(double));
+    std::memcpy(&Ez[dst_offset], src + NyNz * 2, Nz * sizeof(double));
+    std::memcpy(&Bx[dst_offset], src + NyNz * 3, Nz * sizeof(double));
+    std::memcpy(&By[dst_offset], src + NyNz * 4, Nz * sizeof(double));
+    std::memcpy(&Bz[dst_offset], src + NyNz * 5, Nz * sizeof(double));
+  }
 
   // 2. Send and receive right and left faces
   std::vector<double> &right_send = left_send;
   std::vector<double> &left_receive = right_receive;
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int y = 0; y < Ny; ++y) {
-    // const int src_offset = (Ny + 2) * (Nz + 2) * ((Nx - 1) + 1) + (Nz + 2) * (y + 1) + (z + 1);
+    // const int src_offset = (Ny + 2) * (Nz + 2) * ((Nx - 1) + 1) + (Nz + 2) *
+    // (y + 1) + (z + 1);
     const int src_offset = stride_yz * Nx + stride_z * (y + 1) + 1;
     const int dst_offset = y * Nz;
-    
-    double* dst = &right_send[dst_offset];
-    memcpy(dst, &Ex[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz, &Ey[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz * 2, &Ez[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz * 3, &Bx[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz * 4, &By[src_offset], Nz * sizeof(double));
-    memcpy(dst + NyNz * 5, &Bz[src_offset], Nz * sizeof(double));
-  }
 
+    double *dst = &right_send[dst_offset];
+    std::memcpy(dst, &Ex[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz, &Ey[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz * 2, &Ez[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz * 3, &Bx[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz * 4, &By[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NyNz * 5, &Bz[src_offset], Nz * sizeof(double));
+  }
 
   mpi_wrapper->mpi_sendrecv(right_send.data(), Ny * Nz * 6, MPI_DOUBLE, right,
                             2, left_receive.data(), Ny * Nz * 6, MPI_DOUBLE,
                             left, 2, cart_comm, MPI_STATUS_IGNORE);
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int y = 0; y < Ny; ++y) {
-    // const int dst_offset = (Ny + 2) * (Nz + 2) * (-1 + 1) + (Nz + 2) * (y + 1) + (z + 1);
+    // const int dst_offset = (Ny + 2) * (Nz + 2) * (-1 + 1) + (Nz + 2) * (y +
+    // 1) + (z + 1);
     const int dst_offset = stride_z * (y + 1) + 1;
     const int src_offset = y * Nz;
 
-    double* src = &left_receive[src_offset];
-    memcpy(&Ex[dst_offset], src, Nz * sizeof(double));
-    memcpy(&Ey[dst_offset], src + NyNz, Nz * sizeof(double));
-    memcpy(&Ez[dst_offset], src + NyNz * 2, Nz * sizeof(double));
-    memcpy(&Bx[dst_offset], src + NyNz * 3, Nz * sizeof(double));
-    memcpy(&By[dst_offset], src + NyNz * 4, Nz * sizeof(double));
-    memcpy(&Bz[dst_offset], src + NyNz * 5, Nz * sizeof(double));
+    double *src = &left_receive[src_offset];
+    std::memcpy(&Ex[dst_offset], src, Nz * sizeof(double));
+    std::memcpy(&Ey[dst_offset], src + NyNz, Nz * sizeof(double));
+    std::memcpy(&Ez[dst_offset], src + NyNz * 2, Nz * sizeof(double));
+    std::memcpy(&Bx[dst_offset], src + NyNz * 3, Nz * sizeof(double));
+    std::memcpy(&By[dst_offset], src + NyNz * 4, Nz * sizeof(double));
+    std::memcpy(&Bz[dst_offset], src + NyNz * 5, Nz * sizeof(double));
   }
-
 
   // 3. Send and receive back and front faces
   std::vector<double> &back_send = left_send;
@@ -194,76 +195,80 @@ void FDTD_MPI::boundary_synchronization_3D() {
   back_send.resize((Nx + 2) * Nz * 6);
   front_receive.resize((Nx + 2) * Nz * 6);
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int x = -1; x < Nx + 1; ++x) {
-    // const int src_offset = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * ((Ny - 1) + 1) + (z + 1);
+    // const int src_offset = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * ((Ny -
+    // 1) + 1) + (z + 1);
     const int src_offset = stride_yz * (x + 1) + stride_z * Ny + 1;
     const int dst_offset = (x + 1) * Nz;
 
-    double* dst = &back_send[dst_offset];
-    memcpy(dst, &Ex[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz, &Ey[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz * 2, &Ez[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz * 3, &Bx[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz * 4, &By[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz * 5, &Bz[src_offset], Nz * sizeof(double));
+    double *dst = &back_send[dst_offset];
+    std::memcpy(dst, &Ex[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz, &Ey[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz * 2, &Ez[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz * 3, &Bx[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz * 4, &By[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz * 5, &Bz[src_offset], Nz * sizeof(double));
   }
 
   mpi_wrapper->mpi_sendrecv(back_send.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE,
                             back, 3, front_receive.data(), (Nx + 2) * Nz * 6,
                             MPI_DOUBLE, front, 3, cart_comm, MPI_STATUS_IGNORE);
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int x = -1; x < Nx + 1; ++x) {
-    // const int dst_offset = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (-1 + 1) + (z + 1);
+    // const int dst_offset = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (-1 +
+    // 1) + (z + 1);
     const int dst_offset = stride_yz * (x + 1) + 1;
     const int src_offset = (x + 1) * Nz;
 
-    double* src = &front_receive[src_offset];
-    memcpy(&Ex[dst_offset], src, Nz * sizeof(double));
-    memcpy(&Ey[dst_offset], src + NxNz, Nz * sizeof(double));
-    memcpy(&Ez[dst_offset], src + NxNz * 2, Nz * sizeof(double));
-    memcpy(&Bx[dst_offset], src + NxNz * 3, Nz * sizeof(double));
-    memcpy(&By[dst_offset], src + NxNz * 4, Nz * sizeof(double));
-    memcpy(&Bz[dst_offset], src + NxNz * 5, Nz * sizeof(double));
+    double *src = &front_receive[src_offset];
+    std::memcpy(&Ex[dst_offset], src, Nz * sizeof(double));
+    std::memcpy(&Ey[dst_offset], src + NxNz, Nz * sizeof(double));
+    std::memcpy(&Ez[dst_offset], src + NxNz * 2, Nz * sizeof(double));
+    std::memcpy(&Bx[dst_offset], src + NxNz * 3, Nz * sizeof(double));
+    std::memcpy(&By[dst_offset], src + NxNz * 4, Nz * sizeof(double));
+    std::memcpy(&Bz[dst_offset], src + NxNz * 5, Nz * sizeof(double));
   }
 
   // 4. Send and receive front and back faces
   std::vector<double> &front_send = left_send;
   std::vector<double> &back_receive = right_receive;
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int x = -1; x < Nx + 1; ++x) {
-    // const int src_offset = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (0 + 1) + (z + 1);
+    // const int src_offset = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (0 + 1)
+    // + (z + 1);
     const int src_offset = stride_yz * (x + 1) + stride_z + 1;
     const int dst_offset = (x + 1) * Nz;
 
-    double* dst = &front_send[dst_offset];
-    memcpy(dst, &Ex[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz, &Ey[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz * 2, &Ez[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz * 3, &Bx[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz * 4, &By[src_offset], Nz * sizeof(double));
-    memcpy(dst + NxNz * 5, &Bz[src_offset], Nz * sizeof(double));
+    double *dst = &front_send[dst_offset];
+    std::memcpy(dst, &Ex[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz, &Ey[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz * 2, &Ez[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz * 3, &Bx[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz * 4, &By[src_offset], Nz * sizeof(double));
+    std::memcpy(dst + NxNz * 5, &Bz[src_offset], Nz * sizeof(double));
   }
 
   mpi_wrapper->mpi_sendrecv(front_send.data(), (Nx + 2) * Nz * 6, MPI_DOUBLE,
                             front, 4, back_receive.data(), (Nx + 2) * Nz * 6,
                             MPI_DOUBLE, back, 4, cart_comm, MPI_STATUS_IGNORE);
 
-  #pragma omp parallel for
+#pragma omp parallel for
   for (int x = -1; x < Nx + 1; ++x) {
-    // const int dst_offset = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (Ny + 1) + (z + 1);
+    // const int dst_offset = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (Ny +
+    // 1) + (z + 1);
     const int dst_offset = stride_yz * (x + 1) + stride_z * (Ny + 1) + 1;
     const int src_offset = (x + 1) * Nz;
 
-    double* src = &back_receive[src_offset];
-    memcpy(&Ex[dst_offset], src, Nz * sizeof(double));
-    memcpy(&Ey[dst_offset], src + NxNz, Nz * sizeof(double));
-    memcpy(&Ez[dst_offset], src + NxNz * 2, Nz * sizeof(double));
-    memcpy(&Bx[dst_offset], src + NxNz * 3, Nz * sizeof(double));
-    memcpy(&By[dst_offset], src + NxNz * 4, Nz * sizeof(double));
-    memcpy(&Bz[dst_offset], src + NxNz * 5, Nz * sizeof(double));
+    double *src = &back_receive[src_offset];
+    std::memcpy(&Ex[dst_offset], src, Nz * sizeof(double));
+    std::memcpy(&Ey[dst_offset], src + NxNz, Nz * sizeof(double));
+    std::memcpy(&Ez[dst_offset], src + NxNz * 2, Nz * sizeof(double));
+    std::memcpy(&Bx[dst_offset], src + NxNz * 3, Nz * sizeof(double));
+    std::memcpy(&By[dst_offset], src + NxNz * 4, Nz * sizeof(double));
+    std::memcpy(&Bz[dst_offset], src + NxNz * 5, Nz * sizeof(double));
   }
 
   mpi_wrapper->mpi_barrier();
@@ -274,11 +279,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
   up_send.resize((Nx + 2) * (Ny + 2) * 6);
   down_receive.resize((Nx + 2) * (Ny + 2) * 6);
 
-  #pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int y = -1; y < Ny + 1; ++y) {
       int storage_index = (x + 1) * (Ny + 2) + (y + 1);
-      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + ((Nz - 1) + 1);
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + ((Nz -
+      // 1) + 1);
       int index = stride_yz * (x + 1) + stride_z * (y + 1) + Nz;
       up_send[storage_index] = Ex[index];
       up_send[storage_index + NxNy * 1] = Ey[index];
@@ -292,11 +298,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
                             up, 5, down_receive.data(), (Nx + 2) * (Ny + 2) * 6,
                             MPI_DOUBLE, down, 5, cart_comm, MPI_STATUS_IGNORE);
 
-  #pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int y = -1; y < Ny + 1; ++y) {
       int storage_index = (x + 1) * (Ny + 2) + (y + 1);
-      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (-1 + 1);
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (-1 +
+      // 1);
       int index = stride_yz * (x + 1) + stride_z * (y + 1);
       Ex[index] = down_receive[storage_index];
       Ey[index] = down_receive[storage_index + NxNy * 1];
@@ -310,11 +317,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
   std::vector<double> &down_send = left_send;
   std::vector<double> &up_receive = right_receive;
 
-  #pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int y = -1; y < Ny + 1; ++y) {
       int storage_index = (x + 1) * (Ny + 2) + (y + 1);
-      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (0 + 1);
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (0 +
+      // 1);
       int index = stride_yz * (x + 1) + stride_z * (y + 1) + 1;
       down_send[storage_index] = Ex[index];
       down_send[storage_index + NxNy * 1] = Ey[index];
@@ -329,11 +337,12 @@ void FDTD_MPI::boundary_synchronization_3D() {
                             (Nx + 2) * (Ny + 2) * 6, MPI_DOUBLE, up, 6,
                             cart_comm, MPI_STATUS_IGNORE);
 
-  #pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
   for (int x = -1; x < Nx + 1; ++x)
     for (int y = -1; y < Ny + 1; ++y) {
       int storage_index = (x + 1) * (Ny + 2) + (y + 1);
-      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (Nz + 1);
+      // int index = (Ny + 2) * (Nz + 2) * (x + 1) + (Nz + 2) * (y + 1) + (Nz +
+      // 1);
       int index = stride_yz * (x + 1) + stride_z * (y + 1) + (Nz + 1);
       Ex[index] = up_receive[storage_index];
       Ey[index] = up_receive[storage_index + NxNy * 1];
@@ -411,7 +420,7 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
                                                 const Component B,
                                                 const double t,
                                                 const Shift _shift) {
-  Courant_condition_check(_shift);
+  Courant_condition_check();
   double coeff = (_shift == Shift::shifted) ? 0.5 : 0.0;
 
   Field &Ex = EX();
@@ -444,11 +453,11 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
     }
     double sign = get_sign(E, B);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < Nx; ++i) {
       double x = bounds.ax + steps.dx * (shift_relative_to_other_processes + i);
       for (int j = 0; j < Ny; ++j)
-        #pragma omp simd
+#pragma omp simd
         for (int k = 0; k < Nz; ++k) {
           int index =
               (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
@@ -470,11 +479,11 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
     }
     double sign = get_sign(E, B);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int j = 0; j < Ny; ++j) {
       double y = bounds.ay + steps.dy * (shift_relative_to_other_processes + j);
       for (int i = 0; i < Nx; ++i)
-        #pragma omp simd
+#pragma omp simd
         for (int k = 0; k < Nz; ++k) {
           int index =
               (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
@@ -498,11 +507,11 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
     }
     double sign = get_sign(E, B);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int k = 0; k < Nz; ++k) {
       double z = bounds.az + steps.dz * (shift_relative_to_other_processes + k);
       for (int j = 0; j < Ny; ++j)
-        #pragma omp simd
+#pragma omp simd
         for (int i = 0; i < Nx; ++i) {
           int index =
               (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
@@ -608,7 +617,7 @@ void NumericalSolverFDTD::update_B_field() {
 void NumericalSolverFDTD::set_default_values(const Component E,
                                              const Component B,
                                              const Shift _shift) {
-  Courant_condition_check(_shift);
+  Courant_condition_check();
   double coeff = (_shift == Shift::shifted) ? 0.5 : 0.0;
 
   Field &Ex = EX();
@@ -641,11 +650,11 @@ void NumericalSolverFDTD::set_default_values(const Component E,
     }
     double sign = get_sign(E, B);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int i = 0; i < Nx; ++i) {
       double x = bounds.ax + steps.dx * (shift_relative_to_other_processes + i);
       for (int j = 0; j < Ny; ++j)
-        #pragma omp simd
+#pragma omp simd
         for (int k = 0; k < Nz; ++k) {
           int index =
               (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
@@ -666,11 +675,11 @@ void NumericalSolverFDTD::set_default_values(const Component E,
     }
     double sign = get_sign(E, B);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int j = 0; j < Ny; ++j) {
       double y = bounds.ay + steps.dy * (shift_relative_to_other_processes + j);
       for (int i = 0; i < Nx; ++i)
-        #pragma omp simd
+#pragma omp simd
         for (int k = 0; k < Nz; ++k) {
           int index =
               (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
@@ -693,11 +702,11 @@ void NumericalSolverFDTD::set_default_values(const Component E,
     }
     double sign = get_sign(E, B);
 
-    #pragma omp parallel for
+#pragma omp parallel for
     for (int k = 0; k < Nz; ++k) {
       double z = bounds.az + steps.dz * (shift_relative_to_other_processes + k);
       for (int j = 0; j < Ny; ++j)
-        #pragma omp simd
+#pragma omp simd
         for (int i = 0; i < Nx; ++i) {
           int index =
               (Ny + 2) * (Nz + 2) * (i + 1) + (Nz + 2) * (j + 1) + (k + 1);
@@ -717,7 +726,6 @@ void NumericalSolverFDTD::set_default_values(const Component E,
 void FDTD::NumericalSolverFDTD::numerical_solution(const double t) {
   int iterations = static_cast<int>(t);
   for (int time = 0; time < iterations; ++time) {
-    // std::cout << "Time step: " << time << std::endl;
     update_B_field();
     update_E_field();
     update_B_field();
