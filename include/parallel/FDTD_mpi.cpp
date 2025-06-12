@@ -531,7 +531,6 @@ void AnalyticalSolverFDTD::analytical_soulution(const Component E,
 
 void NumericalSolverFDTD::solve(const Component E, const Component B,
                                 const double t, const Shift _shift) {
-  set_default_values(E, B, _shift);
   numerical_solution(t);
 }
 
@@ -549,28 +548,24 @@ void NumericalSolverFDTD::update_E_field() {
 
   const int Ny_mul_Nz = (Ny + 2) * (Nz + 2);
 
-#pragma omp parallel
-  {
-    int index, index_i1, index_j1, index_k1;
-#pragma omp for collapse(2)
-    for (int i = 0; i < Nx; ++i)
-      for (int j = 0; j < Ny; ++j) {
-        index = Ny_mul_Nz * (i + 1) + (Nz + 2) * (j + 1);
+#pragma omp parallel for collapse(2)
+  for (int i = 0; i < Nx; ++i)
+    for (int j = 0; j < Ny; ++j) {
+      int index = Ny_mul_Nz * (i + 1) + (Nz + 2) * (j + 1) + 1;
 #pragma omp simd
-        for (int k = 0; k < Nz; ++k) {
-          ++index;
-          index_i1 = index - Ny_mul_Nz; // i - 1
-          index_j1 = index - (Nz + 2);  // j - 1
-          index_k1 = index - 1;         // k - 1
-          Ex[index] += factor_y * (Bz[index] - Bz[index_j1]) -
-                       factor_z * (By[index] - By[index_k1]);
-          Ey[index] += factor_z * (Bx[index] - Bx[index_k1]) -
-                       factor_x * (Bz[index] - Bz[index_i1]);
-          Ez[index] += factor_x * (By[index] - By[index_i1]) -
-                       factor_y * (Bx[index] - Bx[index_j1]);
-        }
+      for (int k = 0; k < Nz; ++k) {
+        int index_i1 = index - Ny_mul_Nz; // i - 1
+        int index_j1 = index - (Nz + 2);  // j - 1
+        int index_k1 = index - 1;         // k - 1
+        Ex[index] += factor_y * (Bz[index] - Bz[index_j1]) -
+                     factor_z * (By[index] - By[index_k1]);
+        Ey[index] += factor_z * (Bx[index] - Bx[index_k1]) -
+                     factor_x * (Bz[index] - Bz[index_i1]);
+        Ez[index] += factor_x * (By[index] - By[index_i1]) -
+                     factor_y * (Bx[index] - Bx[index_j1]);
+        ++index;
       }
-  }
+    }
   boundary_synchronization_3D();
 }
 
@@ -588,29 +583,27 @@ void NumericalSolverFDTD::update_B_field() {
   const double factor_z = C_mul_Bdt / grid->get_coordinates_steps().dz;
 
   const int Ny_mul_Nz = (Ny + 2) * (Nz + 2);
-#pragma omp parallel
-  {
-    int index, index_i1, index_j1, index_k1;
-#pragma omp for collapse(2)
-    for (int i = 0; i < Nx; ++i)
-      for (int j = 0; j < Ny; ++j) {
-        index = Ny_mul_Nz * (i + 1) + (Nz + 2) * (j + 1);
-#pragma omp simd
-        for (int k = 0; k < Nz; ++k) {
-          ++index;
-          index_i1 = index + Ny_mul_Nz; // i + 1
-          index_j1 = index + (Nz + 2);  // j + 1
-          index_k1 = index + 1;         // k + 1
 
-          Bx[index] += factor_z * (Ey[index_k1] - Ey[index]) -
-                       factor_y * (Ez[index_j1] - Ez[index]);
-          By[index] += factor_x * (Ez[index_i1] - Ez[index]) -
-                       factor_z * (Ex[index_k1] - Ex[index]);
-          Bz[index] += factor_x * (Ex[index_j1] - Ex[index]) -
-                       factor_z * (Ey[index_i1] - Ey[index]);
-        }
+#pragma omp parallel for collapse(2)
+  for (int i = 0; i < Nx; ++i)
+    for (int j = 0; j < Ny; ++j) {
+      int index = Ny_mul_Nz * (i + 1) + (Nz + 2) * (j + 1) + 1;
+#pragma omp simd
+      for (int k = 0; k < Nz; ++k) {
+        int index_i1 = index + Ny_mul_Nz; // i + 1
+        int index_j1 = index + (Nz + 2);  // j + 1
+        int index_k1 = index + 1;         // k + 1
+
+        Bx[index] += factor_z * (Ey[index_k1] - Ey[index]) -
+                     factor_y * (Ez[index_j1] - Ez[index]);
+        By[index] += factor_x * (Ez[index_i1] - Ez[index]) -
+                     factor_z * (Ex[index_k1] - Ex[index]);
+        Bz[index] += factor_x * (Ex[index_j1] - Ex[index]) -
+                     factor_z * (Ey[index_i1] - Ey[index]);
+
+        ++index;
       }
-  }
+    }
   boundary_synchronization_3D();
 }
 

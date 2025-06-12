@@ -27,25 +27,11 @@ int main(int argc, char *argv[]) {
   // const double dz = (bounds.bz - bounds.az) / static_cast<double>(grid_sizes.Nz);
   // const double dt = alpha / (FDTD::C * std::sqrt(1.0/(dx*dx) + 1.0/(dy*dy) + 1.0/(dz*dz)));
   const int iterations = 150;
-  omp_set_num_threads(4);
 
   if (rank == 0) {
     std::cout << "OMP max threads: " << omp_get_max_threads() << std::endl;
   }
 
-  // #pragma omp parallel 
-  // {
-  //   if (rank == 0) {
-  //     std::cout << "kol-vo = " << omp_get_num_threads() << std::endl;
-  //   }
-  // }
-
-  // #pragma omp parallel
-  // {
-  //   if (rank == 0) {
-  //     std::cout << "Number of thread: " << omp_get_thread_num() << std::endl;
-  //   }
-  // }
   // FDTD::Component E = FDTD::Component::Ex;
   // FDTD::Component B = FDTD::Component::Ey;
   FDTD::Component E = FDTD::Component::Ez;
@@ -62,6 +48,7 @@ int main(int argc, char *argv[]) {
   analytical_solver.solve(E, B, iterations * dt, shift); // t = 0
   
   FDTD::NumericalSolverFDTD numerical_solver(grid_ptr, mpi_wrapper_ptr);
+  numerical_solver.set_default_values(E, B, shift);
   auto start = std::chrono::high_resolution_clock::now();
   numerical_solver.solve(E, B, iterations, shift);
   auto end = std::chrono::high_resolution_clock::now();

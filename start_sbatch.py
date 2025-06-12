@@ -31,7 +31,7 @@ print('Путь до исполняемого файла -', path_to_bin_file)
 num_threads = 1
 num_runs = 5 # Количество итераций запуска программы для подсчёта времени работы
 ntasks_per_node = 1 # Число процессов на узел
-num_clusters = 1 # Число узлов
+num_clusters = 4 # Число узлов
 np = num_clusters * num_clusters # Общее число процессов
 t = 200 # Лимит на выполнение задачи
 
@@ -87,8 +87,8 @@ domain_sizes = [512]
 # thread_list = [1, 2, 4, 8, 16, 32]
 # thread_list = [1, 1, 1, 1, 1, 1, 1, 1]
 # thread_list = [1, 1, 1, 1, 1, 1]
-thread_list = [1, 2, 4, 8, 16, 32]
-proc_list = [1, 1, 1, 1, 1, 1]
+thread_list = [1]
+proc_list = [16]
 # proc_list = [1, 2, 4, 8, 16, 32]
 # proc_list = [32, 16, 8, 4, 2, 1]
 # proc_list = [1, 2, 3, 4, 5, 6, 7, 8]

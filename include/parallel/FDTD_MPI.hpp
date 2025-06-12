@@ -54,7 +54,7 @@ public:
 
   virtual void solve(const Component E, const Component B, const double t,
                      const Shift _shift) = 0; // Pure virtual function
-  
+
 protected:
   std::shared_ptr<Grid> grid;
   std::shared_ptr<MPI_Wrapper> mpi_wrapper;
@@ -82,11 +82,12 @@ public:
   void solve(const Component E, const Component B, const double t,
              const Shift _shift) override;
 
+  void set_default_values(const Component E, const Component B,
+                          const Shift _shift);
+
 protected:
   void update_E_field();
   void update_B_field();
-  void set_default_values(const Component E, const Component B,
-                          const Shift _shift);
   void numerical_solution(const double t);
 };
 

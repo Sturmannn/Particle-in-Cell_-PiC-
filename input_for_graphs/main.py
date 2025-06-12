@@ -82,7 +82,6 @@ for idx, field in enumerate(fields):
     # Добавление легенды и сетки
     axs[idx].legend(fontsize=10)
     axs[idx].grid(True, color='black', linestyle=':')
-    
     # # Увеличиваем шрифт
     # for label in (axs[idx].get_xticklabels() + axs[idx].get_yticklabels()):
     #     label.set_fontsize(10)
