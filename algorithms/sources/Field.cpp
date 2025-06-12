@@ -53,22 +53,14 @@ void Field::ComputingField::resize_field(const int64_t _Nx, const int64_t _Ny, c
 
 double& Field::ComputingField::operator()(const int64_t i, const int64_t j, const int64_t k) {
 
-  // "k" по умолчанию 0, поэтому двумерный случай считается верно
-  // ============ Пока что не проверял правильность умножения на "k" для трёхмерного случая
-  // return field[Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx - i + 1)];
-  // Аналог, надо будет сравнить с этим
-  return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Nx + 2) * (j + 1) + (i + 1)]; // !!!!!!!!!!!!!!!!!!!!!!!!
-  // return field[(Nx + 2) * (j + 1) + (i + 1)]; // !!!!!!!!!!!!!!!!!!!!!!!!
-
-  //return field[Nx * Ny * k + (Nx + 2) * (j + 1) - (Nx + 2 - i - 1)]; // здесь К + 1 надо наверное
+  return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Nx + 2) * (j + 1) + (i + 1)];
+  // return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Ny + 2) * (i + 1) + (j + 1)];
 }
 
 const double& Field::ComputingField::operator()(const int64_t i, const int64_t j, const int64_t k) const
 {
-  //return const_cast<const double&>((*this)(i, j, k));
-  //return (*this)(i, j, k);
-  // return field[Nx * Ny * k + (Nx + 2) * (j + 2) - (Nx - i + 1)];
   return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Nx + 2) * (j + 1) + (i + 1)];
+  // return field[(Nx + 2) * (Ny + 2) * (k + 1) + (Ny + 2) * (i + 1) + (j + 1)];
 }
 
 Field::ComputingField& Field::ComputingField::operator=(const Field::ComputingField& _field) {
@@ -189,7 +181,8 @@ void Field::ComputingField::write_field_to_file(const char* path, const int64_t 
   case Axis::Ox:
     check_index(index, Ny);
     for (int64_t i = 0; i < Nx; ++i)
-      outfile << this->operator()(i, index, -1) << (i < Nx - 1 ? ';' : '\n'); // Меняю с (i, index, 0) на (i, index, -1)
+      // outfile << this->operator()(i, index, -1) << (i < Nx - 1 ? ';' : '\n'); // Меняю с (i, index, 0) на (i, index, -1)
+      outfile << this->operator()(i, index, 1) << (i < Nx - 1 ? ';' : '\n'); // Меняю с (i, index, 0) на (i, index, -1)
     break;
   case Axis::Oy:
     check_index(index, Nx);

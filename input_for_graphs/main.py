@@ -58,8 +58,8 @@ fig, axs = plt.subplots(3, 2, figsize=(14, 10))
 axs = axs.flatten()
 
 # Создание оси Ox
-# x_axis = np.arange(len(num_combined_data[0]))
-x_axis = np.arange(len(num_combined_data[0])) * delta
+x_axis = np.arange(len(anl_combined_data[0]))
+# x_axis = np.arange(len(num_combined_data[0])) * delta
 
 # Цвета для различных графиков
 colors = ['blue', 'red']
@@ -82,7 +82,6 @@ for idx, field in enumerate(fields):
     # Добавление легенды и сетки
     axs[idx].legend(fontsize=10)
     axs[idx].grid(True, color='black', linestyle=':')
-    
     # # Увеличиваем шрифт
     # for label in (axs[idx].get_xticklabels() + axs[idx].get_yticklabels()):
     #     label.set_fontsize(10)
